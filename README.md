@@ -1,5 +1,10 @@
 # CS 153 - Infrastructure at Scale AI Agent Starter Code
 
+## Notes for our Bot
+
+### On Discord API
+Still need to send [link](https://discord.com/oauth2/authorize?client_id=1340495778317340745&permissions=532576332864&integration_type=0&scope=bot) to Discord channel and send a DM to the admin bot.
+
 Note that for Discord the terms Bot and App are interchangable. We will use App in this manual.
 
 ## Discord App Framework Code
