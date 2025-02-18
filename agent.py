@@ -12,6 +12,22 @@ class MistralAgent:
 
         self.client = Mistral(api_key=MISTRAL_API_KEY)
 
+    async def test_run(self, message: str):
+        """
+        Sample test run, not within the Discord content.
+        """
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": message},
+        ]
+
+        response = await self.client.chat.complete_async(
+            model=MISTRAL_MODEL,
+            messages=messages,
+        )
+
+        return response.choices[0].message.content
+
     async def run(self, message: discord.Message):
         # The simplest form of an agent
         # Send the message's content to Mistral's API and return Mistral's response
