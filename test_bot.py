@@ -23,5 +23,5 @@ async def process_message(message: str):
 # Example usage
 if __name__ == "__main__":
     import asyncio
-    message = "Can you explain basketball to me?"
+    message = "How many points is Austin Reaves currently averaging?"
     asyncio.run(process_message(message))
