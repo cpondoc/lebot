@@ -56,10 +56,10 @@ async def on_message(message: discord.Message):
     # Open up the agent.py file to customize the agent
     logger.info(f"Processing message from {message.author}: {message.content}")
     response = await agent.run(message)
-
-    # Send the response back to the channel
-    await message.reply(response)
-
+    if len(response) > 1900:
+        for i in range(0, len(response), 1900):
+            await message.reply(response[i:i+1900])
+        return
 
 # Commands
 
