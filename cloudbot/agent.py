@@ -3,7 +3,7 @@ from mistralai import Mistral
 import discord
 import asyncio  # Import asyncio for running async code
 import json
-from tools.aws import start_instance
+from tools.aws import start_instance, run_command
 import time
 
 MISTRAL_MODEL = "mistral-large-latest"
@@ -14,22 +14,30 @@ from dotenv import load_dotenv
 load_dotenv()
 
 EXTRACT_TOOL_PROMPT = """
-Given the below message, check if it is talking about managing AWS infrastructure. If so, find the corresponding tool to use from the following options:
-- start_instance: Function to start an AWS instance.
+Given the below message, check if it is talking about managing AWS infrastructure. If so, find the corresponding tool, from the following options.
+Each tool may also have a set of parameters. If the set of parameters is listed, also specify what parameters are needed for the function call. 
+
+Function: start_instance = Function to start an AWS instance.
+Function: run_command = Run a command within the AWS instance.
+    - Parameter: command (string) = what command to run within the AWS instane. 
 
 If there is no tool, return {"tool": "none"}.
 
-Otherwise, return the full name of the tool in JSON format.
+Otherwise, return the full name of the tool and the corresponding parameters in JSON format.
 
 Example:
 Message: Can you please boot up my AWS Instance?
-Respone: {"tool": "start_instance"}
+Response: {"tool": "start_instance"}
+
+Example:
+Message: Can you run the main.py file?
+Response: {"tool": "run_command", "command": "python3 main.py"}
 """
 
 TOOLS_PROMPT = """
 You are a helpful AWS infrastructure assistant.
 Given the name of a function to use, use your tools fulfill the request.
-Only use tools if needed.
+Only use tools if needed. Pass in the proper parameters as stated by the request, as well!
 """
 
 
@@ -56,10 +64,25 @@ class MistralAgent:
                         "properties": {},  # Explicitly define empty properties
                     },
                 },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "run_command",
+                    "description": "Run a command within an AWS instance.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "command": {"type": "string"},
+                        },
+                        "required": ["command"],
+                    },
+                },
             }
         ]
         self.tools_to_functions = {
             "start_instance": start_instance,
+            "run_command": run_command
         }
 
     async def extract_tool(self, message: str) -> dict:
@@ -81,12 +104,17 @@ class MistralAgent:
         if obj["tool"] == "none":
             return None
 
-        return obj["tool"]
+        return obj
 
-    async def get_data_with_tools(self, tool: str):
+    async def get_data_with_tools(self, tool: dict):
         """
         Working demo: run the right call, return a summary to the user.
         """
+        # Check which tool to use
+        full_tool_str = f"Function: {tool["tool"]}\n"
+        for key in tool:
+            if key != "tool":
+                full_tool_str += f"{key}: {tool[key]}\n"
         messages = [
             {"role": "system", "content": TOOLS_PROMPT},
             {"role": "user", "content": f"Function: {tool}"},
@@ -100,7 +128,7 @@ class MistralAgent:
             tool_choice="any",
         )
 
-        print(f"Tool response message: {tool_response.choices[0].message}")
+        # print(f"Tool response message: {tool_response.choices[0].message}")
         messages.append(tool_response.choices[0].message)
 
         # Perform tool call
@@ -142,8 +170,8 @@ class MistralAgent:
             return None
 
         # Now, let's fetch the next tool
-        print(f"Sure! We're now running {tool}")
-        time.sleep(5)
+        print(f"Sure! We're now running {tool["tool"]}")
+        time.sleep(2)
         tool_response = await self.get_data_with_tools(tool)
         return tool_response
 

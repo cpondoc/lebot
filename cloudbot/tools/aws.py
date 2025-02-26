@@ -69,7 +69,7 @@ def start_instance():
 
 
 # Function to run a shell command on the EC2 instance using SSM
-def run_command(command):
+def run_command(command: str):
     response = ssm.send_command(
         InstanceIds=[INSTANCE_ID],
         DocumentName="AWS-RunShellScript",
