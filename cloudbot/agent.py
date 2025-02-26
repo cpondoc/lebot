@@ -1,3 +1,7 @@
+"""
+Code initially to run an agent that can handle cloud functions.
+"""
+
 import os
 from mistralai import Mistral
 import discord
@@ -36,12 +40,12 @@ Response: {"tool": "run_command", "command": "python3 main.py"}
 
 TOOLS_PROMPT = """
 You are a helpful AWS infrastructure assistant.
-Given the name of a function to use, use your tools fulfill the request.
-Only use tools if needed. Pass in the proper parameters as stated by the request, as well!
+Given the name of a function to use, use your tools fulfill the request. In addition, using the tool parameters, explain how you completed the request.
+Only use tools if needed. Pass in the proper parameters as stated by the request, as well! Lastly, return in Markdown.
 """
 
 
-class MistralAgent:
+class AWSAgent:
     def __init__(self):
         """
         Initialize agent with API key
@@ -78,11 +82,11 @@ class MistralAgent:
                         "required": ["command"],
                     },
                 },
-            }
+            },
         ]
         self.tools_to_functions = {
             "start_instance": start_instance,
-            "run_command": run_command
+            "run_command": run_command,
         }
 
     async def extract_tool(self, message: str) -> dict:
@@ -106,15 +110,16 @@ class MistralAgent:
 
         return obj
 
-    async def get_data_with_tools(self, tool: dict):
+    async def get_data_with_tools(self, tool: dict, request: str):
         """
         Working demo: run the right call, return a summary to the user.
         """
         # Check which tool to use
-        full_tool_str = f"Function: {tool["tool"]}\n"
+        full_tool_str = f"Request: {request}\nFunction: {tool["tool"]}\n"
         for key in tool:
             if key != "tool":
                 full_tool_str += f"{key}: {tool[key]}\n"
+        # print(f"Tool Call: \n{full_tool_str}")
         messages = [
             {"role": "system", "content": TOOLS_PROMPT},
             {"role": "user", "content": f"Function: {tool}"},
@@ -160,35 +165,23 @@ class MistralAgent:
         )
         return response.choices[0].message.content
 
-    async def run(self, message: str):
+    async def run(self, message: discord.Message):
         """
         Extract the proper tool, perform the function, and return response
         """
         # Extract the tool from the message to verify that the user is asking about something related to cloud infrastructure.
-        tool = await self.extract_tool(message)
+        tool = await self.extract_tool(message.content)
         if tool is None:
             return None
 
-        # Now, let's fetch the next tool
-        print(f"Sure! We're now running {tool["tool"]}")
+        # Send a message to the user that we are fetching weather data.
+        res_message = await message.reply(f"Sure! We're now running `{tool["tool"]}`.")
+
+        # Use a second prompt chain to get the weather data and response.
         time.sleep(2)
-        tool_response = await self.get_data_with_tools(tool)
-        return tool_response
+        tool_response = await self.get_data_with_tools(tool, message.content)
 
-
-async def main():
-    agent = MistralAgent()
-
-    while True:
-        user_input = input("\nYou: ")  # Get user input
-        if user_input.lower() in ["exit", "quit"]:  # Exit condition
-            print("Exiting chat.")
-            break
-
-        response = await agent.run(user_input)
-        print(f"Chatbot: {response}")
-
-
-# Run the event loop correctly
-if __name__ == "__main__":
-    asyncio.run(main())
+        # Edit the message to show the tool data.
+        if len(tool_response) > 1900:
+            tool_response = tool_response[i : i + 1900]
+        await res_message.edit(content=tool_response)
