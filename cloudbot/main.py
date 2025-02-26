@@ -1,6 +1,7 @@
 """
 Test script to run a command inside of an AWS VM.
 """
+
 import boto3
 import os
 import time
@@ -24,15 +25,16 @@ ec2 = boto3.client(
     "ec2",
     aws_access_key_id=AWS_ACCESS_KEY_ID,
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-    region_name=AWS_REGION
+    region_name=AWS_REGION,
 )
 
 ssm = boto3.client(
     "ssm",
     aws_access_key_id=AWS_ACCESS_KEY_ID,
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-    region_name=AWS_REGION
+    region_name=AWS_REGION,
 )
+
 
 # Function to start EC2 instance if it's stopped
 def start_instance():
@@ -45,6 +47,7 @@ def start_instance():
         time.sleep(30)  # Wait for the instance to boot
         print("Instance started.")
 
+
 # Function to run a shell command on the EC2 instance using SSM
 def run_command(command):
     response = ssm.send_command(
@@ -52,19 +55,17 @@ def run_command(command):
         DocumentName="AWS-RunShellScript",
         Parameters={"commands": [command]},
     )
-    
+
     command_id = response["Command"]["CommandId"]
 
     # Wait for command execution
     time.sleep(5)
 
     # Fetch command output
-    output = ssm.get_command_invocation(
-        CommandId=command_id,
-        InstanceId=INSTANCE_ID
-    )
+    output = ssm.get_command_invocation(CommandId=command_id, InstanceId=INSTANCE_ID)
 
     return output["StandardOutputContent"]
+
 
 # Ensure the instance is running
 start_instance()
