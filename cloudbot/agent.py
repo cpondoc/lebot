@@ -4,6 +4,7 @@ import discord
 import asyncio  # Import asyncio for running async code
 import json
 from tools.aws import start_instance
+import time
 
 MISTRAL_MODEL = "mistral-large-latest"
 SYSTEM_PROMPT = "You are a helpful assistant."
@@ -142,6 +143,7 @@ class MistralAgent:
 
         # Now, let's fetch the next tool
         print(f"Sure! We're now running {tool}")
+        time.sleep(5)
         tool_response = await self.get_data_with_tools(tool)
         return tool_response
 
