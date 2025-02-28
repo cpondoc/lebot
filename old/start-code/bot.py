@@ -4,7 +4,7 @@ import logging
 
 from discord.ext import commands
 from dotenv import load_dotenv
-from agent import AWSAgent
+from agent import MistralAgent
 
 PREFIX = "!"
 
@@ -20,7 +20,7 @@ intents = discord.Intents.all()
 bot = commands.Bot(command_prefix=PREFIX, intents=intents)
 
 # Import the Mistral agent from the agent.py file
-agent = AWSAgent()
+agent = MistralAgent()
 
 
 # Get the token from the environment variables
@@ -55,8 +55,11 @@ async def on_message(message: discord.Message):
     # Process the message with the agent you wrote
     # Open up the agent.py file to customize the agent
     logger.info(f"Processing message from {message.author}: {message.content}")
-    await agent.run(message)
-
+    response = await agent.run(message)
+    if len(response) > 1900:
+        for i in range(0, len(response), 1900):
+            await message.reply(response[i:i+1900])
+        return
 
 # Commands
 
