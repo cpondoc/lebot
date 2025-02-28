@@ -236,7 +236,7 @@ class AWSAgent:
         for i, tool in enumerate(tool_calls):
             await thread.send(f"Step {i+1}/{len(tool_calls)}: {tool['description']}...")
             tool_response = await self.get_data_with_tools(tool, message.content)
-
+            
             # Show plan messages
             if i < len(tool_calls) - 1:
                 await thread.send(f"**✅ Step {i+1}**:\n{tool_response}")
@@ -249,4 +249,7 @@ class AWSAgent:
         # Send final response in thread
         if len(final_response) > 1900:
             final_response = final_response[:1900] + "..."
-        await thread.send(f"**Task completed!** 🎉\n\n{final_response}")
+        await message.reply(
+            f"**Task completed!** 🎉\n\n{final_response if final_response else '✅ All steps completed successfully.'}\n\n"
+            f"**Want more details?** View the agent's thread [here]({thread.jump_url})."
+        )
