@@ -43,23 +43,24 @@ Each tool may require specific parameters. If parameters are necessary, extract 
 Return a JSON list of objects. Each object must have:  
 - `"tool"`: The exact tool name (string).  
 - `"parameters"`: A dictionary of required parameters (if applicable).  
+- `"description"`: A description of the action you are taking.
 
 ### **Examples:**  
 
 #### **AWS-related message:**  
 **Message:** "Can you please boot up my AWS Instance?"  
-**Response:** `[{{"tool": "start_instance"}}]`  
+**Response:** `[{{"tool": "start_instance", "description": "Starting the instance."}}]`  
 
 #### **Non-AWS message:**  
 **Message:** "Can you run the `main.py` file?"  
-**Response:** `[{{"tool": "run_command", "command": "python3 main.py"}}]`  
+**Response:** `[{{"tool": "run_command", "command": "python3 main.py", "description": "Running the `main.py` file."}}]`  
 
 #### **Complex multi-step command:**  
 **Message:** "Can you navigate into the `home` directory, make a directory called `test`, and enter that directory?"  
 **Response:** `[  
-    {{"tool": "run_command", "command": "cd home"}},  
-    {{"tool": "run_command", "command": "mkdir test"}},  
-    {{"tool": "run_command", "command": "cd test"}}  
+    {{"tool": "run_command", "command": "cd home", "description": "Navigating into the home directory."}},  
+    {{"tool": "run_command", "command": "mkdir test", "description": "Making the test directory."}},  
+    {{"tool": "run_command", "command": "cd test", "description": "Navigating into the created test directory."}}  
 ]`  
 """
 
@@ -80,19 +81,10 @@ class AWSAgent:
         if not MISTRAL_API_KEY:
             raise ValueError("MISTRAL_API_KEY environment variable is not set")
 
-        # Initialize boto3 clients
-        self.ec2_client = boto3.client(
-            "ec2",
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-            region_name=AWS_REGION,
-        )
 
-        self.ssm_session = PersistentSSMSession()
-
-        # Define client and tools
+        # Define clients and tools
         self.client = Mistral(api_key=MISTRAL_API_KEY)
-        self.counter = 0
+        self.ssm = PersistentSSMSession()
         self.tools = [
             {
                 "type": "function",
@@ -122,7 +114,7 @@ class AWSAgent:
         ]
         self.tools_to_functions = {
             "start_instance": start_instance,
-            "run_command": run_command,
+            "run_command": self.ssm.execute_command,
         }
 
     async def extract_plan(self, message: str) -> dict:
@@ -176,7 +168,7 @@ class AWSAgent:
         for key in tool:
             if key != "tool":
                 full_tool_str += f"{key}: {tool[key]}\n"
-        # print(f"Tool Call: \n{full_tool_str}")
+
         messages = [
             {"role": "system", "content": TOOLS_PROMPT},
             {"role": "user", "content": f"Function: {tool}"},
@@ -222,47 +214,39 @@ class AWSAgent:
         )
         return response.choices[0].message.content
 
-    # Function to run a shell command on the EC2 instance using SSM
-    def run_command(self, command: str):
-        response = self.ssm_session.execute_command(command)
-        return response
-        # response = self.ssm_client.send_command(
-        #     InstanceIds=[INSTANCE_ID],
-        #     DocumentName="AWS-RunShellScript",
-        #     Parameters={"commands": [command]},
-        # )
-
-        # command_id = response["Command"]["CommandId"]
-
-        # # Wait for command execution
-        # time.sleep(5)
-
-        # # Fetch command output
-        # output = self.ssm_client.get_command_invocation(CommandId=command_id, InstanceId=INSTANCE_ID)
-
-        # return output["StandardOutputContent"]
-
     async def run(self, message: discord.Message):
         """
-        Extract the proper tool, perform the function, and return response
+        Extract the proper tool, create a thread, perform all functions in the plan, and return responses.
         """
-        # Extract the tool from the message to verify that the user is asking about something related to cloud infrastructure.
-        output = self.run_command(message.content)
-        print(output)
-        # plan = await self.extract_plan(message.content)
-        # print(plan)
-        # tool = await self.extract_tool(message.content)
-        # if tool is None:
-        #     return None
+        # Extract a plan (which may contain multiple tool calls)
+        plan = await self.extract_plan(message.content)
+        if not plan or plan == "[]":
+            await message.reply(
+                "I couldn't find any AWS-related tasks in your request."
+            )
+            return
 
-        # # Send a message to the user that we are fetching weather data.
-        # res_message = await message.reply(f"Sure! We're now running `{tool["tool"]}`.")
+        # Parse JSON into a list of tool calls, create thread
+        tool_calls = json.loads(plan)
+        thread = await message.create_thread(name=f"AWS Task - {message.author.name}")
+        await thread.send(f"Processing {len(tool_calls)} steps...")
 
-        # # Use a second prompt chain to get the weather data and response.
-        # time.sleep(2)
-        # tool_response = await self.get_data_with_tools(tool, message.content)
+        # Iterate over each tool call and execute
+        final_response = ""
+        for i, tool in enumerate(tool_calls):
+            await thread.send(f"Step {i+1}/{len(tool_calls)}: {tool['description']}...")
+            tool_response = await self.get_data_with_tools(tool, message.content)
 
-        # # Edit the message to show the tool data.
-        # if len(tool_response) > 1900:
-        #     tool_response = tool_response[i : i + 1900]
-        # await res_message.edit(content=tool_response)
+            # Show plan messages
+            if i < len(tool_calls) - 1:
+                await thread.send(f"**✅ Step {i+1}**:\n{tool_response}")
+            else:
+                final_response = tool_response
+
+            # Sleep to give agent a bit of time
+            await asyncio.sleep(2)
+
+        # Send final response in thread
+        if len(final_response) > 1900:
+            final_response = final_response[:1900] + "..."
+        await thread.send(f"**Task completed!** 🎉\n\n{final_response}")
