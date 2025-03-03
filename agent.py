@@ -31,10 +31,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 EXTRACT_PLAN_PROMPT = f"""
-Analyze the given message and determine whether it is related to managing AWS infrastructure.  
-If it is **not** related to AWS infrastructure, return an empty list: `[]`.  
+You are a helpful assistant that is knowledgeable about cloud instances, AWS, and Linux. Below, please analyze the given
+message and determine whether it is related to managing the user's AWS instance. The user may not specify the words "AWS" or
+"instance," but will talk about activities such as opening a folder, creating a file, or running a script.
 
-If it **is** related to AWS infrastructure, generate a structured plan using the following tools:  
+If it is **not** related to manging their AWS instance, return an empty list: `[]`.  
+
+If it **is** related to manging their AWS instance, generate a structured plan using the following tools:  
 {ALL_TOOLS}  
 
 Each tool may require specific parameters. If parameters are necessary, extract and specify them in the response.  
@@ -55,7 +58,6 @@ Return a JSON list of objects. Each object must have:
 **Message:** "Can you run the `main.py` file?"  
 **Response:** `[{{"tool": "run_command", "command": "python3 main.py", "description": "Running the `main.py` file."}}]`  
 
-#### **Complex multi-step command:**  
 **Message:** "Can you navigate into the `home` directory, make a directory called `test`, and enter that directory?"  
 **Response:** `[  
     {{"tool": "run_command", "command": "cd home", "description": "Navigating into the home directory."}},  
@@ -65,11 +67,14 @@ Return a JSON list of objects. Each object must have:
 """
 
 TOOLS_PROMPT = """
-You are a helpful AWS infrastructure assistant.
-Given the name of a function to use, use your tools fulfill the request. In addition, using the tool parameters, explain how you completed the request.
-Only use tools if needed. Pass in the proper parameters as stated by the request, as well! Lastly, return in Markdown.
-"""
+You are a helpful assistant that is knowledgeable about cloud instances, AWS, and Linux. In following messages, you will be prompted to fulfill a user
+request related to someone's cloud instance. Specifically: given the name of a function to use, use the tools available to complete the request. If the
+request contains parameters, please pass those into the function/tool, as well. 
 
+After using the tool and completing the user's request, be sure to explain how you completed the user's request. In other words: if you're not using a
+tool, return an answer, in Markdown, about the steps you took to fulfill the user's command. If you are not using a tool, DO NOT RETURN A LIST CONTAINING
+DIFFERENT COMMANDS.
+"""
 
 class AWSAgent:
     def __init__(self):
@@ -212,6 +217,7 @@ class AWSAgent:
             model=MISTRAL_MODEL,
             messages=messages,
         )
+        print(response)
         return response.choices[0].message.content
 
     async def run(self, message: discord.Message):
