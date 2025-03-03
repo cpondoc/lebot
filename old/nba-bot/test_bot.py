@@ -12,6 +12,7 @@ load_dotenv()
 # Initialize Mistral agent
 agent = MistralAgent()
 
+
 async def process_message(message: str):
     """
     Processes a given message using the Mistral agent.
@@ -20,8 +21,10 @@ async def process_message(message: str):
     print(response)
     return response
 
+
 # Example usage
 if __name__ == "__main__":
     import asyncio
+
     message = "How many points is Austin Reaves currently averaging?"
     asyncio.run(process_message(message))

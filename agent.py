@@ -9,7 +9,14 @@ import asyncio  # Import asyncio for running async code
 import json
 from tools.aws import start_instance, run_command
 import time
-from prompts import EXTRACT_TOOL_PROMPT, ALL_TOOLS
+from prompts import (
+    EXTRACT_TOOL_PROMPT,
+    ALL_TOOLS,
+    EXTRACT_PLAN_PROMPT,
+    TOOLS_PROMPT,
+    FINAL_SUMMARY_PROMPT,
+    SUMMARIZE_TOOL_USE_PROMPT,
+)
 import boto3
 from dotenv import load_dotenv
 from tools.session import PersistentSSMSession
@@ -23,55 +30,18 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION")
 INSTANCE_ID = os.getenv("INSTANCE_ID")
 
+# Model and env variable config
 MISTRAL_MODEL = "mistral-large-latest"
-SYSTEM_PROMPT = "You are a helpful assistant."
-
 from dotenv import load_dotenv
 
 load_dotenv()
 
-EXTRACT_PLAN_PROMPT = f"""
-Analyze the given message and determine whether it is related to managing AWS infrastructure.  
-If it is **not** related to AWS infrastructure, return an empty list: `[]`.  
-
-If it **is** related to AWS infrastructure, generate a structured plan using the following tools:  
-{ALL_TOOLS}  
-
-Each tool may require specific parameters. If parameters are necessary, extract and specify them in the response.  
-
-### **Response Format:**
-Return a JSON list of objects. Each object must have:  
-- `"tool"`: The exact tool name (string).  
-- `"parameters"`: A dictionary of required parameters (if applicable).  
-- `"description"`: A description of the action you are taking.
-
-### **Examples:**  
-
-#### **AWS-related message:**  
-**Message:** "Can you please boot up my AWS Instance?"  
-**Response:** `[{{"tool": "start_instance", "description": "Starting the instance."}}]`  
-
-#### **Non-AWS message:**  
-**Message:** "Can you run the `main.py` file?"  
-**Response:** `[{{"tool": "run_command", "command": "python3 main.py", "description": "Running the `main.py` file."}}]`  
-
-#### **Complex multi-step command:**  
-**Message:** "Can you navigate into the `home` directory, make a directory called `test`, and enter that directory?"  
-**Response:** `[  
-    {{"tool": "run_command", "command": "cd home", "description": "Navigating into the home directory."}},  
-    {{"tool": "run_command", "command": "mkdir test", "description": "Making the test directory."}},  
-    {{"tool": "run_command", "command": "cd test", "description": "Navigating into the created test directory."}}  
-]`  
-"""
-
-TOOLS_PROMPT = """
-You are a helpful AWS infrastructure assistant.
-Given the name of a function to use, use your tools fulfill the request. In addition, using the tool parameters, explain how you completed the request.
-Only use tools if needed. Pass in the proper parameters as stated by the request, as well! Lastly, return in Markdown.
-"""
-
 
 class AWSAgent:
+    """
+    Agent class to deal with and interact with AWS instance.
+    """
+
     def __init__(self):
         """
         Initialize agent with API key
@@ -80,7 +50,6 @@ class AWSAgent:
         MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
         if not MISTRAL_API_KEY:
             raise ValueError("MISTRAL_API_KEY environment variable is not set")
-
 
         # Define clients and tools
         self.client = Mistral(api_key=MISTRAL_API_KEY)
@@ -163,15 +132,20 @@ class AWSAgent:
         """
         Working demo: run the right call, return a summary to the user.
         """
-        # Check which tool to use
-        full_tool_str = f"Request: {request}\nFunction: {tool["tool"]}\n"
-        for key in tool:
-            if key != "tool":
-                full_tool_str += f"{key}: {tool[key]}\n"
 
+        # Create a tool string
+        def create_tool_str(tool: dict):
+            full_tool_str = f"Function: {tool["tool"]}\n"
+            for key in tool:
+                if key != "tool":
+                    full_tool_str += f"{key}: {tool[key]}\n"
+            return full_tool_str
+
+        # Check which tool to use
+        full_tool_str = create_tool_str(tool)
         messages = [
             {"role": "system", "content": TOOLS_PROMPT},
-            {"role": "user", "content": f"Function: {tool}"},
+            {"role": "user", "content": full_tool_str},
         ]
 
         # Require the agent to use a tool with the "any" tool choice.
@@ -181,8 +155,6 @@ class AWSAgent:
             tools=self.tools,
             tool_choice="any",
         )
-
-        # print(f"Tool response message: {tool_response.choices[0].message}")
         messages.append(tool_response.choices[0].message)
 
         # Perform tool call
@@ -197,20 +169,45 @@ class AWSAgent:
         if not isinstance(function_result, str):
             function_result = json.dumps(function_result)
 
-        # Append the tool call and its result to the messages.
-        messages.append(
-            {
-                "role": "tool",
-                "name": function_name,
-                "content": function_result,
-                "tool_call_id": tool_call.id,
-            }
-        )
+        # Format tool call record for the prompt
+        tool["content"] = function_result
+        final_tool_str = create_tool_str(tool)
 
         # Run the model again to generate the summary.
+        summary_messages = [
+            {
+                "role": "system",
+                "content": f"{SUMMARIZE_TOOL_USE_PROMPT}\n\n{final_tool_str}",
+            },
+        ]
         response = await self.client.chat.complete_async(
             model=MISTRAL_MODEL,
-            messages=messages,
+            messages=summary_messages,
+        )
+
+        return response.choices[0].message.content, final_tool_str
+
+    async def summarize_actions(self, request: str, messages: list[str]):
+        """
+        Prompt a model to summarize all of the messages.
+        """
+
+        # Create a string from messages
+        def format_as_bulleted_list(strings: list[str]):
+            return "\n".join(f"- {s}" for s in strings)
+
+        formatted_steps = format_as_bulleted_list(messages)
+
+        # Prompt model to summarize
+        response = await self.client.chat.complete_async(
+            model=MISTRAL_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": f"{FINAL_SUMMARY_PROMPT}\n\n{formatted_steps}",
+                },
+                {"role": "user", "content": request},
+            ],
         )
         return response.choices[0].message.content
 
@@ -232,23 +229,25 @@ class AWSAgent:
         await thread.send(f"Processing {len(tool_calls)} steps...")
 
         # Iterate over each tool call and execute
-        final_response = ""
+        step_summaries = []
         for i, tool in enumerate(tool_calls):
-            await thread.send(f"Step {i+1}/{len(tool_calls)}: {tool['description']}...")
-            tool_response = await self.get_data_with_tools(tool, message.content)
-            
-            # Show plan messages
-            if i < len(tool_calls) - 1:
-                await thread.send(f"**✅ Step {i+1}**:\n{tool_response}")
-            else:
-                final_response = tool_response
+            await thread.send(
+                f"**⏳ Step {i+1}/{len(tool_calls)}:** {tool['description']}..."
+            )
+            tool_response, tool_string = await self.get_data_with_tools(
+                tool, message.content
+            )
 
-            # Sleep to give agent a bit of time
+            # Show plan messages, give agent a bit of time
+            await thread.send(f"**✅ Step {i+1}**:\n{tool_response}")
+            step_summaries.append(tool_string)
+            step_summaries.append(tool_response)
             await asyncio.sleep(2)
 
         # Send final response in thread
-        if len(final_response) > 1900:
-            final_response = final_response[:1900] + "..."
+        final_response = await self.summarize_actions(message.content, step_summaries)
+        if len(final_response) > 1500:
+            final_response = final_response[:1500] + "..."
         await message.reply(
             f"**Task completed!** 🎉\n\n{final_response if final_response else '✅ All steps completed successfully.'}\n\n"
             f"**Want more details?** View the agent's thread [here]({thread.jump_url})."

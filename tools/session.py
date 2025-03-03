@@ -12,6 +12,7 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION")
 INSTANCE_ID = os.getenv("INSTANCE_ID")
 
+
 class PersistentSSMSession:
     def __init__(self):
         # Configure the boto3 client with tcp_keepalive
