@@ -58,8 +58,9 @@ async def on_message(message: discord.Message):
     response = await agent.run(message)
     if len(response) > 1900:
         for i in range(0, len(response), 1900):
-            await message.reply(response[i:i+1900])
+            await message.reply(response[i : i + 1900])
         return
+
 
 # Commands
 

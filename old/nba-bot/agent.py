@@ -34,6 +34,7 @@ Given a player's name and a user's request, use your tools to fulfill the reques
 Only use tools if needed. If you use a tool, make sure the name is not an emptry string.
 """
 
+
 class MistralAgent:
     def __init__(self):
         MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
