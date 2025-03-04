@@ -85,15 +85,24 @@ class AWSAgent:
             "start_instance": start_instance,
             "run_command": self.ssm.execute_command,
         }
+        self.memory = []
 
     async def extract_plan(self, message: str) -> dict:
         """
         Extract plan instead of singular tool.
         """
+        #Add memory to prompt for plan
+        print("Memory:", self.memory)
+        if self.memory:
+            str_memory = "\n".join(self.memory)
+        else:
+            str_memory = "None"
+        new_extract_plan_prompt = EXTRACT_PLAN_PROMPT.replace("memory", str_memory)
+        print("New prompt:", new_extract_plan_prompt)
         response = await self.client.chat.complete_async(
             model=MISTRAL_MODEL,
             messages=[
-                {"role": "system", "content": EXTRACT_PLAN_PROMPT},
+                {"role": "system", "content": new_extract_plan_prompt},
                 {"role": "user", "content": f"Discord message: {message}\nOutput:"},
             ],
             response_format={"type": "json_object"},
@@ -230,6 +239,7 @@ class AWSAgent:
 
         # Iterate over each tool call and execute
         step_summaries = []
+        step_memory = ""
         for i, tool in enumerate(tool_calls):
             await thread.send(
                 f"**⏳ Step {i+1}/{len(tool_calls)}:** {tool['description']}..."
@@ -239,10 +249,14 @@ class AWSAgent:
             )
 
             # Show plan messages, give agent a bit of time
+            if len(tool_response) > 1500:
+                tool_response = tool_response[:1500] + "..."
             await thread.send(f"**✅ Step {i+1}**:\n{tool_response}")
+            step_memory += f"**✅ Step {i+1}**:\n{tool_response}"
             step_summaries.append(tool_string)
             step_summaries.append(tool_response)
             await asyncio.sleep(2)
+        self.memory.append(step_memory)
 
         # Send final response in thread
         final_response = await self.summarize_actions(message.content, step_summaries)

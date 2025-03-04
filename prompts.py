@@ -4,7 +4,7 @@ A set of prompts for running our agent.
 
 # Prompt for simpler extract tool
 EXTRACT_TOOL_PROMPT = """
-Given the below message, check if it is talking about managing AWS infrastructure. If so, find the corresponding tool, from the following options.
+Given the below message, check if the message is talking about managing AWS infrastructure. If so, find the corresponding tool, from the following options.
 Each tool may also have a set of parameters. If the set of parameters is listed, also specify what parameters are needed for the function call. 
 
 Function: start_instance = Function to start an AWS instance.
@@ -32,15 +32,21 @@ Function: run_command = Run a command within the AWS instance.
 
 EXTRACT_PLAN_PROMPT = f"""
 You are a helpful assistant that is knowledgeable about cloud instances, AWS, and Linux. Below, please analyze the given
-message and determine whether it is related to managing the user's AWS instance. The user may not specify the words "AWS" or
+message and the previous stepsand determine whether it is related to managing the user's AWS instance. The user may not specify the words "AWS" or
 "instance," but will talk about activities such as opening a folder, creating a file, or running a script.
 
-If it is **not** related to manging their AWS instance, return an empty list: `[]`.  
+Please also take into account the previous steps you have executed. Each time you run a command, it is from the home directory; however, the user assumes 
+they are in the directory specified in the previous steps, if there are any. Previous steps:
+memory
 
-If it **is** related to manging their AWS instance, generate a structured plan using the following tools:  
+If the message is **not** related to manging their AWS instance, return an empty list: `[]`.  
+
+If the message **is** related to manging their AWS instance considering the previous steps, generate a structured plan using the following tools:  
 {ALL_TOOLS}  
 
 Each tool may require specific parameters. If parameters are necessary, extract and specify them in the response.  
+
+
 
 ### **Response Format:**
 Return a JSON list of objects. Each object must have:  
