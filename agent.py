@@ -53,7 +53,13 @@ class AWSAgent:
 
         # Define clients and tools
         self.client = Mistral(api_key=MISTRAL_API_KEY)
-        self.ssm = PersistentSSMSession()
+
+        # discord_name: (PersistentSSMSession(), memory_information)
+        self.user_state_dict = {}
+        # self.ssm = PersistentSSMSession()
+        # self.memory = []
+
+
         self.tools = [
             {
                 "type": "function",
@@ -81,20 +87,24 @@ class AWSAgent:
                 },
             },
         ]
-        self.tools_to_functions = {
-            "start_instance": start_instance,
-            "run_command": self.ssm.execute_command,
-        }
-        self.memory = []
+        # self.tools_to_functions = {
+        #     "start_instance": start_instance,
+        #     "run_command": self.ssm.execute_command,
+        # }
 
-    async def extract_plan(self, message: str) -> dict:
+        # self.tools_to_functions = {
+        #     "start_instance": start_instance,
+        #     "run_command": ,
+        # }
+
+    async def extract_plan(self, message: str, memory_list: list) -> dict:
         """
         Extract plan instead of singular tool.
         """
         #Add memory to prompt for plan
-        print("Memory:", self.memory)
-        if self.memory:
-            str_memory = "\n".join(self.memory)
+        print("Memory:", memory_list)
+        if memory_list:
+            str_memory = "\n".join(memory_list)
         else:
             str_memory = "None"
         new_extract_plan_prompt = EXTRACT_PLAN_PROMPT.replace("memory", str_memory)
@@ -137,10 +147,16 @@ class AWSAgent:
 
         return obj
 
-    async def get_data_with_tools(self, tool: dict, request: str):
+    async def get_data_with_tools(self, tool: dict, request: str, current_user_session: PersistentSSMSession):
         """
         Working demo: run the right call, return a summary to the user.
         """
+
+        tools_to_functions = {
+            "start_instance": start_instance,
+            "run_command": current_user_session.execute_command,
+        }
+
 
         # Create a tool string
         def create_tool_str(tool: dict):
@@ -174,7 +190,7 @@ class AWSAgent:
             function_params = json.loads(tool_call.function.arguments)
 
         # Ensure function_result is a string before appending
-        function_result = self.tools_to_functions[function_name](**function_params)
+        function_result = tools_to_functions[function_name](**function_params)
         if not isinstance(function_result, str):
             function_result = json.dumps(function_result)
 
@@ -224,14 +240,20 @@ class AWSAgent:
         """
         Extract the proper tool, create a thread, perform all functions in the plan, and return responses.
         """
-        # Extract a plan (which may contain multiple tool calls)
-        plan = await self.extract_plan(message.content)
+        if message.author not in self.user_state_dict:
+            self.user_state_dict[message.author] = (PersistentSSMSession(message.author), []) # ssmSession, memory
+            # TO DO: update the Persistent session to create the new user!
+        
+        current_user_state = self.user_state_dict[message.author]
+
+        # Extract a plan (which may contain multiple tool calls)      
+        plan = await self.extract_plan(message.content, current_user_state[1])
         if not plan or plan == "[]":
             await message.reply(
                 "I couldn't find any AWS-related tasks in your request."
             )
             return
-
+        
         # Parse JSON into a list of tool calls, create thread
         tool_calls = json.loads(plan)
         thread = await message.create_thread(name=f"AWS Task - {message.author.name}")
@@ -245,7 +267,7 @@ class AWSAgent:
                 f"**⏳ Step {i+1}/{len(tool_calls)}:** {tool['description']}..."
             )
             tool_response, tool_string = await self.get_data_with_tools(
-                tool, message.content
+                tool, message.content, current_user_state[0]
             )
 
             # Show plan messages, give agent a bit of time
@@ -256,7 +278,7 @@ class AWSAgent:
             step_summaries.append(tool_string)
             step_summaries.append(tool_response)
             await asyncio.sleep(2)
-        self.memory.append(step_memory)
+        self.user_state_dict[message.author][1].append(step_memory)
 
         # Send final response in thread
         final_response = await self.summarize_actions(message.content, step_summaries)

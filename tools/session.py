@@ -14,7 +14,7 @@ INSTANCE_ID = os.getenv("INSTANCE_ID")
 
 
 class PersistentSSMSession:
-    def __init__(self):
+    def __init__(self, user: str):
         # Configure the boto3 client with tcp_keepalive
         session = boto3.session.Session()
         self.ssm_client = session.client(
@@ -34,44 +34,78 @@ class PersistentSSMSession:
         )
 
         # Initialize state variables for tracking session state
-        self.current_directory = "/home/ec2-user"  # Default starting directory
+        self.current_directory = None
         self.environment_vars = {}
         self.command_history = []
         self.session_id = None
+        self.user = user
+        self.run_from_current_user = f"sudo -u {user} bash -c "
 
         # Initialize the directory by checking the actual home directory
-        self.initialize_directory()
+        self.initialize_directory(user)
 
-    def initialize_directory(self):
+    def initialize_directory(self, user: str):
         """Initialize by finding the actual home directory of the instance"""
-        try:
+        # First, check if the user exists
+        check_user_cmd = f"id {user}"
+        response = self.ssm_client.send_command(
+            InstanceIds=[INSTANCE_ID],
+            DocumentName="AWS-RunShellScript",
+            Parameters={"commands": [check_user_cmd]},
+        )
+        command_id = response["Command"]["CommandId"]
+        self._wait_for_command(command_id)
+        output = self.ssm_client.get_command_invocation(
+            CommandId=command_id, InstanceId=INSTANCE_ID
+        )
+
+        # If the user doesn't exist, create a new user
+        if output["Status"] == "Failed":
+            create_user_cmd = f"sudo adduser {user}"
             response = self.ssm_client.send_command(
                 InstanceIds=[INSTANCE_ID],
                 DocumentName="AWS-RunShellScript",
-                Parameters={"commands": ["echo $HOME"]},
+                Parameters={"commands": [create_user_cmd]},
             )
-
             command_id = response["Command"]["CommandId"]
-            time.sleep(2)
+            self._wait_for_command(command_id)
             output = self.ssm_client.get_command_invocation(
                 CommandId=command_id, InstanceId=INSTANCE_ID
             )
+            if output["Status"] == "Failed":
+                print("Creating new user failed!")
+        
+        self.current_directory = f"/home/{user}"
 
-            home_dir = output["StandardOutputContent"].strip()
-            if home_dir:
-                self.current_directory = home_dir
-                print(
-                    f"Session initialized at home directory: {self.current_directory}"
-                )
-            else:
-                print(f"Using default home directory: {self.current_directory}")
+        # try:
+        #     response = self.ssm_client.send_command(
+        #         InstanceIds=[INSTANCE_ID],
+        #         DocumentName="AWS-RunShellScript",
+        #         Parameters={"commands": ["echo $HOME"]},
+        #     )
 
-        except Exception as e:
-            print(f"Error initializing directory: {e}")
-            print(f"Using default home directory: {self.current_directory}")
+        #     command_id = response["Command"]["CommandId"]
+        #     time.sleep(2)
+        #     output = self.ssm_client.get_command_invocation(
+        #         CommandId=command_id, InstanceId=INSTANCE_ID
+        #     )
+
+        #     home_dir = output["StandardOutputContent"].strip()
+        #     if home_dir:
+        #         self.current_directory = home_dir
+        #         print(
+        #             f"Session initialized at home directory: {self.current_directory}"
+        #         )
+        #     else:
+        #         print(f"Using default home directory: {self.current_directory}")
+
+        # except Exception as e:
+        #     print(f"Error initializing directory: {e}")
+        #     print(f"Using default home directory: {self.current_directory}")
 
     def execute_command(self, command):
         """Execute a command while maintaining simulated persistence, handling multiple commands separated by &&."""
+
 
         # Split commands by "&&" and trim whitespace
         commands = [cmd.strip() for cmd in command.split("&&") if cmd.strip()]
@@ -99,13 +133,13 @@ class PersistentSSMSession:
 
         # Handle empty cd (go to home)
         if not dir_path:
-            check_cmd = "cd && pwd"
+            check_cmd = self.run_from_current_user + '"cd && pwd"'
         # Handle absolute paths
         elif dir_path.startswith("/"):
-            check_cmd = f"if [ -d '{dir_path}' ]; then cd '{dir_path}' && pwd; else echo 'Directory not found'; fi"
+            check_cmd = self.run_from_current_user + f""" "if [ -d '{dir_path}' ]; then cd '{dir_path}' && pwd; else echo 'Directory not found'; fi" """
         # Handle relative paths
         else:
-            check_cmd = f"if [ -d '{self.current_directory}/{dir_path}' ] || [ -d '{dir_path}' ]; then cd '{self.current_directory}' && cd '{dir_path}' && pwd; else echo 'Directory not found'; fi"
+            check_cmd = self.run_from_current_user +  f""" "if [ -d '{self.current_directory}/{dir_path}' ] || [ -d '{dir_path}' ]; then cd '{self.current_directory}' && cd '{dir_path}' && pwd; else echo 'Directory not found'; fi" """
 
         response = self.ssm_client.send_command(
             InstanceIds=[INSTANCE_ID],
@@ -134,7 +168,7 @@ class PersistentSSMSession:
             self.environment_vars[var_name] = var_value
 
             # Actually set it on the server
-            full_command = f"cd '{self.current_directory}' && {var_name}={var_value} && echo 'Set {var_name}={var_value}'"
+            full_command = self.run_from_current_user + f""" "cd '{self.current_directory}' && {var_name}={var_value} && echo 'Set {var_name}={var_value}'" """
 
             response = self.ssm_client.send_command(
                 InstanceIds=[INSTANCE_ID],
@@ -156,7 +190,7 @@ class PersistentSSMSession:
         env_prefix = f"{env_vars} " if env_vars else ""
 
         # Execute command in current directory with environment variables
-        full_command = f"cd '{self.current_directory}' && {env_prefix}{command}"
+        full_command = self.run_from_current_user + f""" "cd '{self.current_directory}' && {env_prefix}{command}" """
 
         try:
             response = self.ssm_client.send_command(
