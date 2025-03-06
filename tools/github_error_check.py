@@ -26,14 +26,6 @@ mistral_client = Mistral(api_key=MISTRAL_API_KEY)
 # Model and env variable config
 MISTRAL_MODEL = "mistral-large-latest"
 
-# Initialize SSM client
-ssm = boto3.client(
-    "ssm",
-    aws_access_key_id=AWS_ACCESS_KEY_ID,
-    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-    region_name=AWS_REGION,
-)
-
 def wait_for_command(ssm, command_id, instance_id, max_retries=20, initial_delay=2):
     """
     Helper function to wait for SSM command completion with proper error handling.
@@ -139,6 +131,132 @@ def run_ssm_command(ssm, command, max_wait_time=60):
             "error": f"Error executing command: {str(e)}",
         }
 
+def clone_github_repo(repo_url: str, directory_name: str = None) -> Dict:
+    """
+    Clones a GitHub repository to the EC2 instance.
+    
+    Args:
+        repo_url: URL of the GitHub repository (e.g., https://github.com/username/repo)
+        directory_name: Optional custom directory name. If not provided, will use repo name
+        
+    Returns:
+        Dict containing information about the cloning operation
+    """
+    try:
+        # Clean the repository URL
+        if repo_url.endswith(".git"):
+            repo_url = repo_url
+        elif not repo_url.endswith("/"):
+            repo_url = f"{repo_url}.git"
+        else:
+            repo_url = f"{repo_url[:-1]}.git"
+        
+        # Extract repository name from URL if directory name is not provided
+        if not directory_name:
+            directory_name = repo_url.split("/")[-1].replace(".git", "")
+        
+        # Initialize SSM client
+        ssm = boto3.client(
+            "ssm",
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+            region_name=AWS_REGION,
+        )
+        
+        # First, check if git is installed
+        check_git_cmd = "which git || echo 'Git not installed'"
+        git_check_result = run_ssm_command(ssm, check_git_cmd)
+        
+        if not git_check_result["success"]:
+            return {
+                "status": "Failed",
+                "error": "Could not check if Git is installed",
+                "directory": directory_name,
+                "repo_url": repo_url
+            }
+        
+        if "Git not installed" in git_check_result["output"]:
+            # Install git if not available
+            install_git_cmd = "sudo yum install -y git || sudo apt-get update && sudo apt-get install -y git"
+            install_result = run_ssm_command(ssm, install_git_cmd, 60)
+            
+            if not install_result["success"]:
+                return {
+                    "status": "Failed",
+                    "error": "Failed to install Git",
+                    "directory": directory_name,
+                    "repo_url": repo_url
+                }
+            
+            # Verify git installation
+            verify_git_result = run_ssm_command(ssm, check_git_cmd)
+            if "Git not installed" in verify_git_result["output"]:
+                return {
+                    "status": "Failed",
+                    "error": "Could not install Git",
+                    "directory": directory_name,
+                    "repo_url": repo_url
+                }
+        
+        # Command to clone the repository
+        # Check if directory already exists and remove it if it does
+        clone_cmd = f"""
+        cd /home/ec2-user/ && 
+        if [ -d "{directory_name}" ]; then
+            echo "Directory already exists. Removing it..."
+            rm -rf "{directory_name}"
+        fi && 
+        echo "Cloning repository {repo_url} into {directory_name}..." && 
+        git clone {repo_url} {directory_name} && 
+        echo "Repository cloned successfully" && 
+        ls -la {directory_name}
+        """
+        
+        # Execute the git clone command - this can take a while
+        clone_result = run_ssm_command(ssm, clone_cmd, 120)
+        
+        if not clone_result["success"]:
+            return {
+                "status": "Failed",
+                "error": "Git clone command failed or timed out",
+                "directory": directory_name,
+                "repo_url": repo_url,
+                "output": clone_result["output"],
+                "error_details": clone_result["error"]
+            }
+        
+        # Verify the repository was cloned by checking if directory exists and contains files
+        verify_cmd = f"cd /home/ec2-user/ && [ -d '{directory_name}' ] && [ -d '{directory_name}/.git' ] && echo 'Repository verified' || echo 'Repository verification failed'"
+        verify_result = run_ssm_command(ssm, verify_cmd)
+        
+        if not verify_result["success"] or "Repository verified" not in verify_result["output"]:
+            return {
+                "status": "Failed",
+                "error": "Repository cloning verification failed",
+                "directory": directory_name,
+                "repo_url": repo_url,
+                "output": clone_result["output"],
+                "verification": verify_result["output"] if verify_result["success"] else "Verification failed"
+            }
+        
+        result = {
+            "status": "Success",
+            "directory": directory_name,
+            "repo_url": repo_url,
+            "output": clone_result["output"],
+            "error": clone_result["error"]
+        }
+        
+        return result
+    
+    except Exception as e:
+        return {
+            "status": "Failed",
+            "error": str(e),
+            "directory": directory_name if directory_name else "unknown",
+            "repo_url": repo_url
+        }
+
 def analyze_readme(repo_directory: str) -> Dict:
     """
     Analyzes the README of a GitHub repository and extracts setup instructions.
@@ -150,6 +268,13 @@ def analyze_readme(repo_directory: str) -> Dict:
         Dict containing extracted setup information
     """
     try:
+        # Initialize SSM client
+        ssm = boto3.client(
+            "ssm",
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+            region_name=AWS_REGION,
+        )
         
         # Commands to check for README files in different formats
         readme_check_command = f"""
@@ -289,6 +414,14 @@ def setup_github_project(repo_directory: str, environment_name: str = None) -> D
     current_step = 0
     
     try:
+        # Initialize SSM client
+        ssm = boto3.client(
+            "ssm",
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+            region_name=AWS_REGION,
+        )
+        
         # Verify the repository directory exists
         check_dir_cmd = f"cd /home/ec2-user/ && [ -d '{repo_directory}' ] && echo 'Directory exists' || echo 'Directory not found'"
         dir_check_result = run_ssm_command(ssm, check_dir_cmd)
@@ -536,6 +669,13 @@ def run_github_project(repo_directory: str, env_name: str = None, custom_command
         Dict containing run results
     """
     try:
+        # Initialize SSM client
+        ssm = boto3.client(
+            "ssm",
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+            region_name=AWS_REGION,
+        )
         
         # Verify the repository directory exists
         check_dir_cmd = f"cd /home/ec2-user/ && [ -d '{repo_directory}' ] && echo 'Directory exists' || echo 'Directory not found'"

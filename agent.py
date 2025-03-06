@@ -8,7 +8,7 @@ import discord
 import asyncio  # Import asyncio for running async code
 import json
 from tools.aws import start_instance, run_command
-from tools.github import clone_github_repo, setup_github_project, run_github_project
+from tools.github import setup_github_project, run_github_project
 import time
 from prompts import (
     EXTRACT_TOOL_PROMPT,
@@ -84,21 +84,6 @@ class AWSAgent:
             {
                 "type": "function",
                 "function": {
-                    "name": "clone_github_repo",
-                    "description": "Clone a GitHub repository to the AWS instance.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "repo_url": {"type": "string"},
-                            "directory_name": {"type": "string"},
-                        },
-                        "required": ["repo_url"],
-                    },
-                },
-            },
-            {
-                "type": "function",
-                "function": {
                     "name": "setup_github_project",
                     "description": "Set up a GitHub project with dependencies and environment.",
                     "parameters": {
@@ -131,7 +116,6 @@ class AWSAgent:
         self.tools_to_functions = {
             "start_instance": start_instance,
             "run_command": self.ssm.execute_command,
-            "clone_github_repo": clone_github_repo,
             "setup_github_project": setup_github_project,
             "run_github_project": run_github_project,
         }

@@ -47,9 +47,6 @@ ALL_TOOLS = """
 Function: start_instance = Function to start an AWS instance.
 Function: run_command = Run a command within the AWS instance.
     - Parameter: command (string) = what command to run within the AWS instance.
-Function: clone_github_repo = Clone a GitHub repository to the AWS instance.
-    - Parameter: repo_url (string) = URL of the GitHub repository to clone.
-    - Parameter: directory_name (string, optional) = Custom directory name for cloning.
 Function: setup_github_project = Set up a GitHub project with dependencies and environment.
     - Parameter: repo_directory (string) = Directory where the repository is cloned.
     - Parameter: environment_name (string, optional) = Custom environment name.
@@ -90,7 +87,11 @@ Return a JSON list of objects. Each object must have:
 
 #### **GitHub-related message:**
 **Message:** "Can you download the repository at https://github.com/user/repo and set it up?"  
-**Response:** `[{{"tool": "clone_github_repo", "repo_url": "https://github.com/user/repo", "description": "Cloning the GitHub repository."}}, {{"tool": "setup_github_project", "repo_directory": "repo", "description": "Setting up the repository with all dependencies."}}]`
+**Response:** `[
+{{"tool": "run_command", "command": "git clone https://github.com/user/repo.git", "description": "Cloning the repository."}}, 
+{{"tool": "run_command", "command": "cd repo", "description": "Navigating to the cloned repository directory."}},
+{{"tool": "setup_github_project", "repo_directory": "repo", "description": "Setting up the repository with all dependencies."}}
+]`
 
 #### **Command message:**  
 **Message:** "Can you run the `main.py` file?"  
