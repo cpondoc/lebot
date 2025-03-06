@@ -10,12 +10,8 @@ Each tool may also have a set of parameters. If the set of parameters is listed,
 Function: start_instance = Function to start an AWS instance.
 Function: run_command = Run a command within the AWS instance.
     - Parameter: command (string) = what command to run within the AWS instance.
-Function: clone_github_repo = Clone a GitHub repository to the AWS instance.
-    - Parameter: repo_url (string) = URL of the GitHub repository to clone.
-    - Parameter: directory_name (string, optional) = Custom directory name for cloning.
 Function: setup_github_project = Set up a GitHub project with dependencies and environment.
     - Parameter: repo_directory (string) = Directory where the repository is cloned.
-    - Parameter: environment_name (string, optional) = Custom environment name.
 Function: run_github_project = Run a GitHub project that has been set up.
     - Parameter: repo_directory (string) = Directory where the repository is cloned.
     - Parameter: env_name (string, optional) = Environment name for Python projects.
@@ -49,7 +45,6 @@ Function: run_command = Run a command within the AWS instance.
     - Parameter: command (string) = what command to run within the AWS instance.
 Function: setup_github_project = Set up a GitHub project with dependencies and environment.
     - Parameter: repo_directory (string) = Directory where the repository is cloned.
-    - Parameter: environment_name (string, optional) = Custom environment name.
 Function: run_github_project = Run a GitHub project that has been set up.
     - Parameter: repo_directory (string) = Directory where the repository is cloned.
     - Parameter: env_name (string, optional) = Environment name for Python projects.
@@ -66,9 +61,9 @@ Please also take into account the previous steps you have executed. Each time yo
 they are in the directory specified in the previous steps, if there are any. Previous steps:
 memory
 
-If the message is **not** related to managing their AWS instance or GitHub repositories, return an empty list: `[]`.  
+If the message is **not** related to managing their AWS instance or working with code, return an empty list: `[]`.  
 
-If the message **is** related to managing their AWS instance or GitHub repositories considering the previous steps, generate a structured plan using the following tools:  
+If the message **is** related to managing their AWS instance or working with code considering the previous steps, generate a structured plan using the following tools:  
 {ALL_TOOLS}  
 
 Each tool may require specific parameters. If parameters are necessary, extract and specify them in the response.  
@@ -106,13 +101,13 @@ Return a JSON list of objects. Each object must have:
 """
 
 TOOLS_PROMPT = f"""
-You are a helpful assistant that is knowledgeable about cloud instances, AWS, Linux, and GitHub repositories. In following messages, you will be prompted to fulfill a user
-request related to someone's cloud instance or GitHub repository. Specifically: given the name of a function to use, use the tools available to complete the request. If the
+You are a helpful assistant that is knowledgeable about cloud instances, AWS, Linux, and working with code from GitHub repositories. In following messages, you will be prompted to fulfill a user
+request related to someone's cloud instance. Specifically: given the name of a function to use, use the tools available to complete the request. If the
 request contains parameters, please pass those into the function/tool, as well. 
 """
 
 SUMMARIZE_TOOL_USE_PROMPT = f"""
-You are a helpful assistant that is knowledgeable about cloud instances, AWS, Linux, and GitHub repositories. You have just completed a request to perform an action with a tool.
+You are a helpful assistant that is knowledgeable about cloud instances, AWS, Linux, and working with code from GitHub repositories. You have just completed a request to perform an action with a tool.
 
 After using the tool and completing the user's request, provide the result and how you completed the user's request. Some guidelines:
 - Please do not use the name of the tool in the answer, but instead describe what the tool does, based on the list of tools below. If your tool required specific parameters, describe, those, as well.
@@ -127,7 +122,7 @@ Description of tool use:
 """
 
 FINAL_SUMMARY_PROMPT = f"""
-You are a helpful assistant that is knowledgeable about cloud instances, AWS, Linux, and GitHub repositories. You have just completed a user request around managing their AWS instance or working with GitHub repositories.
+You are a helpful assistant that is knowledgeable about cloud instances, AWS, Linux, and working with code from GitHub repositories. You have just completed a user request around managing their AWS instance or working with GitHub repositories.
 
 Below, you have a summary of the steps the agent took to fulfill the request. Given the original request and the list of steps, summarize the actions you took. If the 
 user asked for a specific answer, be sure to provide the answer, as well. Some guidelines:
