@@ -8,6 +8,7 @@ import discord
 import asyncio  # Import asyncio for running async code
 import json
 from tools.aws import start_instance, run_command
+from tools.github import clone_github_repo, setup_github_project, run_github_project
 import time
 from prompts import (
     EXTRACT_TOOL_PROMPT,
@@ -80,10 +81,59 @@ class AWSAgent:
                     },
                 },
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "clone_github_repo",
+                    "description": "Clone a GitHub repository to the AWS instance.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "repo_url": {"type": "string"},
+                            "directory_name": {"type": "string"},
+                        },
+                        "required": ["repo_url"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "setup_github_project",
+                    "description": "Set up a GitHub project with dependencies and environment.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "repo_directory": {"type": "string"},
+                            "environment_name": {"type": "string"},
+                        },
+                        "required": ["repo_directory"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "run_github_project",
+                    "description": "Run a GitHub project that has been set up.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "repo_directory": {"type": "string"},
+                            "env_name": {"type": "string"},
+                            "custom_command": {"type": "string"},
+                        },
+                        "required": ["repo_directory"],
+                    },
+                },
+            },
         ]
         self.tools_to_functions = {
             "start_instance": start_instance,
             "run_command": self.ssm.execute_command,
+            "clone_github_repo": clone_github_repo,
+            "setup_github_project": setup_github_project,
+            "run_github_project": run_github_project,
         }
         self.memory = []
 
@@ -98,7 +148,6 @@ class AWSAgent:
         else:
             str_memory = "None"
         new_extract_plan_prompt = EXTRACT_PLAN_PROMPT.replace("memory", str_memory)
-        print("New prompt:", new_extract_plan_prompt)
         response = await self.client.chat.complete_async(
             model=MISTRAL_MODEL,
             messages=[
@@ -228,14 +277,16 @@ class AWSAgent:
         plan = await self.extract_plan(message.content)
         if not plan or plan == "[]":
             await message.reply(
-                "I couldn't find any AWS-related tasks in your request."
+                "I couldn't find any AWS-related tasks or GitHub repository tasks in your request."
             )
             return
 
         # Parse JSON into a list of tool calls, create thread
         tool_calls = json.loads(plan)
-        thread = await message.create_thread(name=f"AWS Task - {message.author.name}")
+        thread = await message.create_thread(name=f"AWS/GitHub Task - {message.author.name}")
         await thread.send(f"Processing {len(tool_calls)} steps...")
+
+        print(tool_calls)
 
         # Iterate over each tool call and execute
         step_summaries = []
