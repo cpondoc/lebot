@@ -38,6 +38,7 @@ class PersistentSSMSession:
         self.environment_vars = {}
         self.command_history = []
         self.session_id = None
+        self.conda_path = "/home/ec2-user/miniconda/bin/conda"
 
         # Initialize the directory by checking the actual home directory
         self.initialize_directory()
@@ -156,7 +157,7 @@ class PersistentSSMSession:
         env_prefix = f"{env_vars} " if env_vars else ""
 
         # Execute command in current directory with environment variables
-        full_command = f"cd '{self.current_directory}' && {env_prefix}{command}"
+        full_command = f"cd '{self.current_directory}' &&  {self.conda_path} run -n env1 {env_prefix}{command}"
 
         try:
             response = self.ssm_client.send_command(

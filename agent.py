@@ -7,7 +7,8 @@ from mistralai import Mistral
 import discord
 import asyncio  # Import asyncio for running async code
 import json
-from tools.aws import start_instance, run_command
+from tools.aws import start_instance
+from tools.github import setup_and_run_github_project
 import time
 from prompts import (
     EXTRACT_TOOL_PROMPT,
@@ -50,6 +51,10 @@ class AWSAgent:
         MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
         if not MISTRAL_API_KEY:
             raise ValueError("MISTRAL_API_KEY environment variable is not set")
+        
+        # Define env
+        self.env = "env1"
+        self.conda_path = "/home/ec2-user/miniconda/bin/conda"
 
         # Define clients and tools
         self.client = Mistral(api_key=MISTRAL_API_KEY)
@@ -80,11 +85,60 @@ class AWSAgent:
                     },
                 },
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "setup_and_run_github_project",
+                    "description": "Set up a GitHub project with dependencies and environment and run the repository.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "repo_directory": {"type": "string"},
+                        },
+                        "required": ["repo_directory"],
+                    },
+                },
+            },
+            # {
+            #     "type": "function",
+            #     "function": {
+            #         "name": "run_github_project",
+            #         "description": "Run a GitHub project that has been set up.",
+            #         "parameters": {
+            #             "type": "object",
+            #             "properties": {
+            #                 "repo_directory": {"type": "string"},
+            #                 "run_command": {"type": "string"},
+            #             },
+            #             "required": ["repo_directory"],
+            #             "required": ["run_command"],
+            #         },
+            #     },
+            # },
         ]
         self.tools_to_functions = {
             "start_instance": start_instance,
             "run_command": self.ssm.execute_command,
+            "setup_and_run_github_project": lambda **kwargs: setup_and_run_github_project(
+                kwargs.get('repo_directory'), self.ssm
+            ),
+            # "run_github_project": lambda **kwargs: run_github_project(
+            #     kwargs.get('repo_directory'), 
+            #     kwargs.get('run_command'), 
+            #     self.ssm
+            # ),
         }
+
+        # Check if environment already exists
+        check_env_cmd = f"source ~/.bashrc && {self.conda_path} env list | grep '{self.env}' || echo 'Environment not found'"
+        env_check_result = self.ssm.execute_command(check_env_cmd)
+        print("env_check_result", env_check_result)
+        env_exists = "Environment not found" not in env_check_result
+        
+        if not env_exists:
+            # Create conda environment
+            conda_create_cmd = f"source ~/.bashrc && cd /home/ec2-user && {self.conda_path} create -y -n {self.env} python"
+            create_env_result = self.ssm.execute_command(conda_create_cmd)
         self.memory = []
 
     async def extract_plan(self, message: str) -> dict:
@@ -98,7 +152,6 @@ class AWSAgent:
         else:
             str_memory = "None"
         new_extract_plan_prompt = EXTRACT_PLAN_PROMPT.replace("memory", str_memory)
-        print("New prompt:", new_extract_plan_prompt)
         response = await self.client.chat.complete_async(
             model=MISTRAL_MODEL,
             messages=[
@@ -234,8 +287,10 @@ class AWSAgent:
 
         # Parse JSON into a list of tool calls, create thread
         tool_calls = json.loads(plan)
-        thread = await message.create_thread(name=f"AWS Task - {message.author.name}")
+        thread = await message.create_thread(name=f"AWS Task- {message.author.name}")
         await thread.send(f"Processing {len(tool_calls)} steps...")
+
+        print(tool_calls)
 
         # Iterate over each tool call and execute
         step_summaries = []
