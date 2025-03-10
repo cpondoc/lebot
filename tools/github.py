@@ -33,7 +33,6 @@ def analyze_readme_for_setup(
     try:
         # Commands to check for README files in different formats
         readme_check_command = f"""
-            cd /home/ec2-user/{repo_directory} && \
             if [ -f README.md ]; then
                 cat README.md;
             elif [ -f README.txt ]; then
@@ -60,7 +59,6 @@ def analyze_readme_for_setup(
 
         # Check for available package managers and dependency files
         dep_check_command = f"""
-        cd /home/ec2-user/{repo_directory} && \
         if [ -f requirements.txt ]; then echo "requirements.txt found"; else echo "requirements.txt not found"; fi && \
         if [ -f pyproject.toml ]; then echo "pyproject.toml found"; else echo "pyproject.toml not found"; fi && \
         if [ -f environment.yml ]; then echo "environment.yml found"; else echo "environment.yml not found"; fi && \
@@ -73,16 +71,15 @@ def analyze_readme_for_setup(
         dep_check_output = ssm_session.execute_command(dep_check_command)
 
         prompt = f"""
-        Below is the README content from a GitHub repository. Please analyze it and extract specific setup instructions.
-        
-        README CONTENT:
-        {readme_content}
-        
-        DEPENDENCY FILES AND TOOLS CHECK:
-        {dep_check_output}
-        
-        Based on the README content and the available dependency files, provide a step-by-step list of commands needed to install all dependencies.
+        You are a programming expert and are tasked with setting up a repository from GitHub. You are given both the content of the README of the repository,
+        if it exists, alongside of files that contain dependencies and tools (i.e., requirements.txt, environment.yml, etc.). Please use both to extract a
+        step-by-step list of commands needed to install all dependencies.  If any information is missing, make a reasonable guess based on the repository structure.
 
+        Some other rules:
+        - Limit returning "echo" commands in the set of steps
+        - Do not inlcude commands to clone or navigate into the repository itself. Assume you are inside of the correct repository folder.
+        - Assume that the proper conda environment is already activated.
+        
         Return your answer in JSON format with the following structure:
         {{
             "setup_steps": [
@@ -92,8 +89,13 @@ def analyze_readme_for_setup(
             ]
         }}
         
-        If any information is missing, make a reasonable guess based on the repository structure.
+        README CONTENT:
+        {readme_content}
+        
+        DEPENDENCY FILES AND TOOLS CHECK:
+        {dep_check_output}
         """
+
         try:
             response = mistral_client.chat.complete(
                 model=MISTRAL_MODEL,
@@ -129,7 +131,6 @@ def analyze_readme_for_run_command(
     try:
         # Commands to check for README files in different formats
         readme_check_command = f"""
-            cd /home/ec2-user/{repo_directory} && \
             if [ -f README.md ]; then
                 cat README.md;
             elif [ -f README.txt ]; then
@@ -156,7 +157,6 @@ def analyze_readme_for_run_command(
 
         # Commands to check for executable files in different formats
         runable_files_command = f"""
-        cd /home/ec2-user/{repo_directory} && 
         echo "=== Executable Files ===" &&
         find . -type f -executable | sort &&
         echo -e "\\n=== Python Files ===" &&
@@ -172,22 +172,23 @@ def analyze_readme_for_run_command(
         runable_files_result = ssm_session.execute_command(runable_files_command)
 
         prompt = f"""
-        Below is the README content from a GitHub repository. Please analyze it and extract the command to run the project.
-        
-        README CONTENT:
-        {readme_content}
-        
-        RUNABLE FILES:
-        {runable_files_result}
-        
-        Based on the README content and the available runnable files, provide the command to run the project.
+        You are a programming expert and are tasked with running a repository from GitHub. You are given both the content of the README of the repository,
+        if it exists, alongside of runnable files (i.e., main.py, app.py, server.js, etc.). Please use both to extract a singular command to run the project. 
+        If any information is missing, make a reasonable guess based on the repository structure.
+
+        Some other rules:
+        - Assume you are inside of the correct repository folder, and assume that the proper conda environment is already activated.
 
         Return your answer in JSON format with the following structure:
         {{
             "run_command": "command"
         }}
         
-        If any information is missing, make a reasonable guess based on the repository structure.
+        README CONTENT:
+        {readme_content}
+        
+        RUNNABLE FILES:
+        {runable_files_result}
         """
         try:
             response = mistral_client.chat.complete(
@@ -198,6 +199,7 @@ def analyze_readme_for_run_command(
             )
 
             run_command = json.loads(response.choices[0].message.content)
+            print(run_command)
 
             return {
                 "status": "Success",
@@ -263,7 +265,7 @@ def setup_github_project(
         return {
             "status": "Success",
             "repo_directory": repo_directory,
-            "environment": {"type": "conda", "name": "env1"},
+            "environment": {"type": "conda", "name": ssm_session.env},
             "steps_executed": step_results,
         }
 

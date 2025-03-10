@@ -62,7 +62,7 @@ If the message is **not** related to managing their AWS instance or working with
 If the message **is** related to managing their AWS instance or working with code considering the previous steps, generate a structured plan using the following tools:  
 {ALL_TOOLS}  
 
-Each tool may require specific parameters. If parameters are necessary, extract and specify them in the response.  
+Each tool may require specific parameters. If parameters are necessary, extract and specify them in the response.
 
 ### **Response Format:**
 Return a JSON list of objects. Each object must have:  

@@ -5,12 +5,12 @@ Code initially to run an agent that can handle cloud functions.
 import os
 from mistralai import Mistral
 import discord
-import asyncio  # Import asyncio for running async code
+import asyncio
 import json
 from tools.aws import start_instance
 from tools.github import setup_github_project, run_github_project
 import time
-from prompts import (
+from helpers.prompts import (
     EXTRACT_TOOL_PROMPT,
     ALL_TOOLS,
     EXTRACT_PLAN_PROMPT,
