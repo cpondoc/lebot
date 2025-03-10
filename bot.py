@@ -75,7 +75,7 @@ async def about_command(ctx):
         "**Example Questions:**\n"
         "- *What files and folders are in my current directory?*\n"
         "- *Clone and set up this repository: <INSERT_REPOSITORY_URL>!*\n"
-        "- *What is the CPU usage on my computer?*\n\n"
+        "- *What is the CPU usage on my instance?*\n\n"
         "**For Support:**\n"
         f"Reach out to: {team_mentions}.\n\n"
         "**Available Commands:**\n"
