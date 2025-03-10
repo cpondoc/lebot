@@ -3,6 +3,7 @@ import boto3
 import botocore
 import time
 from dotenv import load_dotenv
+import shlex
 
 load_dotenv()
 
@@ -90,6 +91,7 @@ class PersistentSSMSession:
 
             # Normal command execution
             else:
+                print("here")
                 results.append(self._execute_normal_command(cmd))
 
         return "\n".join(results)
@@ -151,13 +153,19 @@ class PersistentSSMSession:
             return f"Error setting environment variable: {e}"
 
     def _execute_normal_command(self, command):
-        """Execute a regular command"""
-        # Build environment variables prefix if any are set
+        """Execute a regular shell command inside the conda environment"""
+        # Build environment variable string
         env_vars = " ".join([f"{k}='{v}'" for k, v in self.environment_vars.items()])
         env_prefix = f"{env_vars} " if env_vars else ""
 
-        # Execute command in current directory with environment variables
-        full_command = f"cd '{self.current_directory}' &&  {self.conda_path} run -n env1 {env_prefix}{command}"
+        # Build the full shell logic to run
+        shell_logic = f"cd '{self.current_directory}' && {env_prefix}{command}"
+
+        # Quote the entire shell logic so it becomes a single argument for `bash -c`
+        quoted_shell_logic = shlex.quote(shell_logic)
+
+        # Final command to run via conda
+        full_command = f"{self.conda_path} run -n env1 bash -c {quoted_shell_logic}"
 
         try:
             response = self.ssm_client.send_command(
@@ -171,11 +179,41 @@ class PersistentSSMSession:
             output = self.ssm_client.get_command_invocation(
                 CommandId=command_id, InstanceId=INSTANCE_ID
             )
+            print(output["StandardOutputContent"]), print(output["StandardErrorContent"])
 
             self.command_history.append(command)
             return output["StandardOutputContent"]
         except Exception as e:
             return f"Error executing command: {e}"
+
+
+    # def _execute_normal_command(self, command):
+    #     """Execute a regular command"""
+    #     # Build environment variables prefix if any are set
+    #     env_vars = " ".join([f"{k}='{v}'" for k, v in self.environment_vars.items()])
+    #     env_prefix = f"{env_vars} " if env_vars else ""
+
+    #     # Execute command in current directory with environment variables
+    #     full_command = f"cd '{self.current_directory}' &&  {self.conda_path} run -n env1 {env_prefix}{command}"
+
+    #     try:
+    #         response = self.ssm_client.send_command(
+    #             InstanceIds=[INSTANCE_ID],
+    #             DocumentName="AWS-RunShellScript",
+    #             Parameters={"commands": [full_command]},
+    #         )
+
+    #         command_id = response["Command"]["CommandId"]
+    #         self._wait_for_command(command_id)
+    #         output = self.ssm_client.get_command_invocation(
+    #             CommandId=command_id, InstanceId=INSTANCE_ID
+    #         )
+    #         print(output["StandardOutputContent"], output["StandardErrorContent"])
+
+    #         self.command_history.append(command)
+    #         return output["StandardOutputContent"]
+    #     except Exception as e:
+    #         return f"Error executing command: {e}"
 
     def _wait_for_command(self, command_id, max_retries=10, sleep_time=3):
         """Wait for command to complete with exponential backoff"""

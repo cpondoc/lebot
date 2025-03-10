@@ -8,7 +8,7 @@ import discord
 import asyncio  # Import asyncio for running async code
 import json
 from tools.aws import start_instance
-from tools.github import setup_and_run_github_project
+from tools.github import setup_github_project, run_github_project
 import time
 from prompts import (
     EXTRACT_TOOL_PROMPT,
@@ -88,7 +88,7 @@ class AWSAgent:
             {
                 "type": "function",
                 "function": {
-                    "name": "setup_and_run_github_project",
+                    "name": "setup_github_project",
                     "description": "Set up a GitHub project with dependencies and environment and run the repository.",
                     "parameters": {
                         "type": "object",
@@ -99,34 +99,31 @@ class AWSAgent:
                     },
                 },
             },
-            # {
-            #     "type": "function",
-            #     "function": {
-            #         "name": "run_github_project",
-            #         "description": "Run a GitHub project that has been set up.",
-            #         "parameters": {
-            #             "type": "object",
-            #             "properties": {
-            #                 "repo_directory": {"type": "string"},
-            #                 "run_command": {"type": "string"},
-            #             },
-            #             "required": ["repo_directory"],
-            #             "required": ["run_command"],
-            #         },
-            #     },
-            # },
+            {
+                "type": "function",
+                "function": {
+                    "name": "run_github_project",
+                    "description": "Run a GitHub project that has been set up.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "repo_directory": {"type": "string"},
+                        },
+                        "required": ["repo_directory"],
+                    },
+                },
+            },
         ]
         self.tools_to_functions = {
             "start_instance": start_instance,
             "run_command": self.ssm.execute_command,
-            "setup_and_run_github_project": lambda **kwargs: setup_and_run_github_project(
+            "setup_github_project": lambda **kwargs: setup_github_project(
                 kwargs.get('repo_directory'), self.ssm
             ),
-            # "run_github_project": lambda **kwargs: run_github_project(
-            #     kwargs.get('repo_directory'), 
-            #     kwargs.get('run_command'), 
-            #     self.ssm
-            # ),
+            "run_github_project": lambda **kwargs: run_github_project(
+                kwargs.get('repo_directory'), 
+                self.ssm
+            ),
         }
 
         # Check if environment already exists
