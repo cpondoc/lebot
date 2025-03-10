@@ -3,6 +3,7 @@ import boto3
 import botocore
 import time
 from dotenv import load_dotenv
+import shlex
 
 load_dotenv()
 
@@ -151,13 +152,18 @@ class PersistentSSMSession:
             return f"Error setting environment variable: {e}"
 
     def _execute_normal_command(self, command):
-        """Execute a regular command"""
-        # Build environment variables prefix if any are set
+        """Execute a regular shell command inside the conda environment"""
+        # Build environment variable string
         env_vars = " ".join([f"{k}='{v}'" for k, v in self.environment_vars.items()])
         env_prefix = f"{env_vars} " if env_vars else ""
 
-        # Execute command in current directory with environment variables
-        full_command = f"cd '{self.current_directory}' &&  {self.conda_path} run -n env1 {env_prefix}{command}"
+        # Build the full shell logic to run
+        shell_logic = f"cd '{self.current_directory}' && {env_prefix}{command}"
+
+        # Quote the entire shell logic so it becomes a single argument for `bash -c`
+        quoted_shell_logic = shlex.quote(shell_logic)
+
+        full_command = f"{self.conda_path} run -n env1 bash -c {quoted_shell_logic}"
 
         try:
             response = self.ssm_client.send_command(

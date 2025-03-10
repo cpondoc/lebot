@@ -14,8 +14,6 @@ Function: setup_github_project = Set up a GitHub project with dependencies and e
     - Parameter: repo_directory (string) = Directory where the repository is cloned.
 Function: run_github_project = Run a GitHub project that has been set up.
     - Parameter: repo_directory (string) = Directory where the repository is cloned.
-    - Parameter: env_name (string, optional) = Environment name for Python projects.
-    - Parameter: custom_command (string, optional) = Custom command to run the project.
 
 If there is no tool, return {"tool": "none"}.
 
@@ -47,8 +45,6 @@ Function: setup_github_project = Set up a GitHub project with dependencies and e
     - Parameter: repo_directory (string) = Directory where the repository is cloned.
 Function: run_github_project = Run a GitHub project that has been set up.
     - Parameter: repo_directory (string) = Directory where the repository is cloned.
-    - Parameter: env_name (string, optional) = Environment name for Python projects.
-    - Parameter: custom_command (string, optional) = Custom command to run the project.
 """
 
 EXTRACT_PLAN_PROMPT = f"""
