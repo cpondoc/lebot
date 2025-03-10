@@ -20,7 +20,7 @@ Once installation is complete, activate the new environment:
 conda activate discord_bot
 ```
 
-Finally, start the bot by running:
+Next, set up your `.env` file using the `.example.env` file. Finally, start the bot by running:
 ```sh
 python3 bot.py
 ```
