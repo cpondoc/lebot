@@ -1,4 +1,9 @@
+"""
+Code for a tool that manages AWS instances
+"""
+
 import os
+import shlex
 import boto3
 import botocore
 import time
@@ -202,15 +207,19 @@ class PersistentSSMSession:
             return f"Error setting environment variable: {e}"
 
     def _execute_normal_command(self, command):
-        """Execute a regular command"""
-        # Build environment variables prefix if any are set
+        """Execute a regular shell command inside the conda environment"""
+        # Build environment variable string
         env_vars = " ".join([f"{k}='{v}'" for k, v in self.environment_vars.items()])
         env_prefix = f"{env_vars} " if env_vars else ""
 
-        # Execute command in current directory with environment variables
+        # Build the full shell logic to run
+        shell_logic = f"cd '{self.current_directory}' && {env_prefix}{command}"
+
+        # Quote the entire shell logic so it becomes a single argument for `bash -c`
+        quoted_shell_logic = shlex.quote(shell_logic)
+
         full_command = (
-            self.run_from_current_user
-            + f""" "cd '{self.current_directory}' && {env_prefix}{command}" """
+            f"{self.conda_path} run -n {self.env} bash -c {quoted_shell_logic}"
         )
 
         try:
