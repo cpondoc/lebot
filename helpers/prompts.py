@@ -64,6 +64,9 @@ If the message **is** related to managing their AWS instance or working with cod
 
 Each tool may require specific parameters. If parameters are necessary, extract and specify them in the response.
 
+Some other rules:
+- If we clone a repository and are asked to set it up, be sure to `cd` into the repository before running GitHub commands/functions.
+
 ### **Response Format:**
 Return a JSON list of objects. Each object must have:  
 - `"tool"`: The exact tool name (string).  
