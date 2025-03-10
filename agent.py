@@ -51,14 +51,12 @@ class AWSAgent:
         MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
         if not MISTRAL_API_KEY:
             raise ValueError("MISTRAL_API_KEY environment variable is not set")
-        
-        # Define env
-        self.env = "env1"
-        self.conda_path = "/home/ec2-user/miniconda/bin/conda"
 
-        # Define clients and tools
+        # Set up client + user-specific information
         self.client = Mistral(api_key=MISTRAL_API_KEY)
-        self.ssm = PersistentSSMSession()
+        self.user_state_dict = {}
+
+        # Define tools
         self.tools = [
             {
                 "type": "function",
@@ -114,40 +112,18 @@ class AWSAgent:
                 },
             },
         ]
-        self.tools_to_functions = {
-            "start_instance": start_instance,
-            "run_command": self.ssm.execute_command,
-            "setup_github_project": lambda **kwargs: setup_github_project(
-                kwargs.get('repo_directory'), self.ssm
-            ),
-            "run_github_project": lambda **kwargs: run_github_project(
-                kwargs.get('repo_directory'), 
-                self.ssm
-            ),
-        }
 
-        # Check if environment already exists
-        check_env_cmd = f"source ~/.bashrc && {self.conda_path} env list | grep '{self.env}' || echo 'Environment not found'"
-        env_check_result = self.ssm.execute_command(check_env_cmd)
-        print("env_check_result", env_check_result)
-        env_exists = "Environment not found" not in env_check_result
-        
-        if not env_exists:
-            # Create conda environment
-            conda_create_cmd = f"source ~/.bashrc && cd /home/ec2-user && {self.conda_path} create -y -n {self.env} python"
-            create_env_result = self.ssm.execute_command(conda_create_cmd)
-        self.memory = []
-
-    async def extract_plan(self, message: str) -> dict:
+    async def extract_plan(self, message: str, memories: list) -> dict:
         """
         Extract plan instead of singular tool.
         """
-        #Add memory to prompt for plan
-        print("Memory:", self.memory)
-        if self.memory:
-            str_memory = "\n".join(self.memory)
-        else:
-            str_memory = "None"
+        # Add memory to prompt for plan
+        print("Memory:", memories)
+        str_memory = "None"
+        if memories:
+            str_memory = "\n".join(memories)
+
+        # Prompt new model to extract a plan
         new_extract_plan_prompt = EXTRACT_PLAN_PROMPT.replace("memory", str_memory)
         response = await self.client.chat.complete_async(
             model=MISTRAL_MODEL,
@@ -157,10 +133,8 @@ class AWSAgent:
             ],
             response_format={"type": "json_object"},
         )
-
         message = response.choices[0].message.content
 
-        # obj = json.loads(message)
         if not len(message):
             return None
 
@@ -187,10 +161,24 @@ class AWSAgent:
 
         return obj
 
-    async def get_data_with_tools(self, tool: dict, request: str):
+    async def get_data_with_tools(
+        self, tool: dict, request: str, user_session: PersistentSSMSession
+    ):
         """
         Working demo: run the right call, return a summary to the user.
         """
+
+        # Define user-specific tools to functions mapping
+        tools_to_functions = {
+            "start_instance": start_instance,
+            "run_command": user_session.execute_command,
+            "setup_github_project": lambda **kwargs: setup_github_project(
+                kwargs.get("repo_directory"), user_session
+            ),
+            "run_github_project": lambda **kwargs: run_github_project(
+                kwargs.get("repo_directory"), user_session
+            ),
+        }
 
         # Create a tool string
         def create_tool_str(tool: dict):
@@ -224,7 +212,7 @@ class AWSAgent:
             function_params = json.loads(tool_call.function.arguments)
 
         # Ensure function_result is a string before appending
-        function_result = self.tools_to_functions[function_name](**function_params)
+        function_result = tools_to_functions[function_name](**function_params)
         if not isinstance(function_result, str):
             function_result = json.dumps(function_result)
 
@@ -274,8 +262,16 @@ class AWSAgent:
         """
         Extract the proper tool, create a thread, perform all functions in the plan, and return responses.
         """
+        # First, handle the creation of a new user, if not created
+        if message.author not in self.user_state_dict:
+            self.user_state_dict[message.author] = (
+                PersistentSSMSession(message.author),
+                [],
+            )
+
         # Extract a plan (which may contain multiple tool calls)
-        plan = await self.extract_plan(message.content)
+        current_user_state = self.user_state_dict[message.author]
+        plan = await self.extract_plan(message.content, current_user_state[1])
         if not plan or plan == "[]":
             await message.reply(
                 "I couldn't find any AWS-related tasks in your request."
@@ -286,8 +282,7 @@ class AWSAgent:
         tool_calls = json.loads(plan)
         thread = await message.create_thread(name=f"AWS Task- {message.author.name}")
         await thread.send(f"Processing {len(tool_calls)} steps...")
-
-        print(tool_calls)
+        await asyncio.sleep(2)
 
         # Iterate over each tool call and execute
         step_summaries = []
@@ -297,7 +292,7 @@ class AWSAgent:
                 f"**⏳ Step {i+1}/{len(tool_calls)}:** {tool['description']}..."
             )
             tool_response, tool_string = await self.get_data_with_tools(
-                tool, message.content
+                tool, message.content, current_user_state[0]
             )
 
             # Show plan messages, give agent a bit of time
@@ -308,7 +303,7 @@ class AWSAgent:
             step_summaries.append(tool_string)
             step_summaries.append(tool_response)
             await asyncio.sleep(2)
-        self.memory.append(step_memory)
+        self.user_state_dict[message.author][1].append(step_memory)
 
         # Send final response in thread
         final_response = await self.summarize_actions(message.content, step_summaries)

@@ -15,14 +15,18 @@ MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 
 # Initialize Mistral client for understanding READMEs
 from mistralai import Mistral
+
 mistral_client = Mistral(api_key=MISTRAL_API_KEY)
 # Model and env variable config
 MISTRAL_MODEL = "mistral-large-latest"
 
-# Set conda path 
+# Set conda path
 conda_path = "/home/ec2-user/miniconda/bin/conda"
 
-def analyze_readme_for_setup(repo_directory: str, ssm_session: PersistentSSMSession) -> dict:
+
+def analyze_readme_for_setup(
+    repo_directory: str, ssm_session: PersistentSSMSession
+) -> dict:
     """
     Analyzes the README of a GitHub repository and extracts setup instructions.
     """
@@ -44,16 +48,16 @@ def analyze_readme_for_setup(repo_directory: str, ssm_session: PersistentSSMSess
             """.strip()
 
         readme_result = ssm_session.execute_command(readme_check_command)
-        
+
         if "No README file found" in readme_result:
             return {
                 "status": "Warning",
                 "error": "No README file found in the repository",
-                "setup_steps": []
+                "setup_steps": [],
             }
-        
+
         readme_content = readme_result
-        
+
         # Check for available package managers and dependency files
         dep_check_command = f"""
         cd /home/ec2-user/{repo_directory} && \
@@ -67,7 +71,7 @@ def analyze_readme_for_setup(repo_directory: str, ssm_session: PersistentSSMSess
         if which npm > /dev/null; then echo "npm available"; else echo "npm not available"; fi
         """
         dep_check_output = ssm_session.execute_command(dep_check_command)
-        
+
         prompt = f"""
         Below is the README content from a GitHub repository. Please analyze it and extract specific setup instructions.
         
@@ -95,31 +99,30 @@ def analyze_readme_for_setup(repo_directory: str, ssm_session: PersistentSSMSess
                 model=MISTRAL_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0,
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
             )
-            
+
             analysis_result = json.loads(response.choices[0].message.content)
-            
+
             return {
                 "status": "Success",
                 "readme_content": readme_content,
-                "analysis": analysis_result
+                "analysis": analysis_result,
             }
         except Exception as e:
             return {
                 "status": "Failed",
                 "error": f"README analysis failed: {str(e)}",
-                "setup_steps": []
+                "setup_steps": [],
             }
-        
+
     except Exception as e:
-        return {
-            "status": "Failed",
-            "error": str(e),
-            "setup_steps": []
-        }
-    
-def analyze_readme_for_run_command(repo_directory: str, ssm_session: PersistentSSMSession) -> dict:
+        return {"status": "Failed", "error": str(e), "setup_steps": []}
+
+
+def analyze_readme_for_run_command(
+    repo_directory: str, ssm_session: PersistentSSMSession
+) -> dict:
     """
     Analyzes the README of a GitHub repository and extracts the command to run the project.
     """
@@ -140,18 +143,17 @@ def analyze_readme_for_run_command(repo_directory: str, ssm_session: PersistentS
             fi
             """.strip()
 
-
         readme_result = ssm_session.execute_command(readme_check_command)
-        
+
         if "No README file found" in readme_result:
             return {
                 "status": "Warning",
                 "error": "No README file found in the repository",
-                "setup_steps": []
+                "setup_steps": [],
             }
-        
+
         readme_content = readme_result
-        
+
         # Commands to check for executable files in different formats
         runable_files_command = f"""
         cd /home/ec2-user/{repo_directory} && 
@@ -166,7 +168,7 @@ def analyze_readme_for_run_command(repo_directory: str, ssm_session: PersistentS
         echo -e "\\n=== Common Entry Points ===" &&
         find . -name "main.py" -o -name "app.py" -o -name "index.js" -o -name "server.js" -o -name "start.sh"
         """
-        
+
         runable_files_result = ssm_session.execute_command(runable_files_command)
 
         prompt = f"""
@@ -192,31 +194,30 @@ def analyze_readme_for_run_command(repo_directory: str, ssm_session: PersistentS
                 model=MISTRAL_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0,
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
             )
-            
+
             run_command = json.loads(response.choices[0].message.content)
-            
+
             return {
                 "status": "Success",
                 "readme_content": readme_content,
-                "analysis": run_command
+                "analysis": run_command,
             }
         except Exception as e:
             return {
                 "status": "Failed",
                 "error": f"README analysis failed: {str(e)}",
-                "setup_steps": []
+                "setup_steps": [],
             }
-        
-    except Exception as e:
-        return {
-            "status": "Failed",
-            "error": str(e),
-            "setup_steps": []
-        }
 
-def setup_github_project(repo_directory: str, ssm_session: PersistentSSMSession = None) -> dict:
+    except Exception as e:
+        return {"status": "Failed", "error": str(e), "setup_steps": []}
+
+
+def setup_github_project(
+    repo_directory: str, ssm_session: PersistentSSMSession = None
+) -> dict:
     """
     Sets up a GitHub project based on README analysis, using conda.
     """
@@ -227,55 +228,57 @@ def setup_github_project(repo_directory: str, ssm_session: PersistentSSMSession 
 
     step_results = []
     current_step = 0
-    
+
     try:
         analysis_result = analyze_readme_for_setup(repo_directory, ssm_session)
-        
+
         if analysis_result["status"] != "Success":
             return {
                 "status": "Failed",
                 "error": f"README analysis failed: {analysis_result.get('error', 'Unknown error')}",
-                "steps_executed": []
+                "steps_executed": [],
             }
-        
+
         # Extract setup information
         setup_info = analysis_result["analysis"]
         setup_steps = setup_info.get("setup_steps", [])
         print("setup_steps", setup_steps)
-        
+
         # Now run each setup step
         for step in setup_steps:
-            if step.strip():  
+            if step.strip():
                 step_result = ssm_session.execute_command(step)
-                
-                step_results.append({
-                    "step": f"Setup step {current_step}: {step}",
-                    "command": step,
-                    "status": "Success",
-                    "output": step_result,
-                    "error": ""
-                })
+
+                step_results.append(
+                    {
+                        "step": f"Setup step {current_step}: {step}",
+                        "command": step,
+                        "status": "Success",
+                        "output": step_result,
+                        "error": "",
+                    }
+                )
                 current_step += 1
-        
+
         return {
             "status": "Success",
             "repo_directory": repo_directory,
-            "environment": {
-                "type": "conda",
-                "name": "env1" 
-            },
+            "environment": {"type": "conda", "name": "env1"},
             "steps_executed": step_results,
         }
-        
+
     except Exception as e:
         return {
             "status": "Failed",
             "error": str(e),
             "steps_executed": step_results,
-            "repo_directory": repo_directory
+            "repo_directory": repo_directory,
         }
 
-def run_github_project(repo_directory: str, ssm_session: PersistentSSMSession = None) -> dict:
+
+def run_github_project(
+    repo_directory: str, ssm_session: PersistentSSMSession = None
+) -> dict:
     """
     Runs a GitHub project using conda based on README analysis.
     """
@@ -286,14 +289,14 @@ def run_github_project(repo_directory: str, ssm_session: PersistentSSMSession = 
 
     try:
         analysis_result = analyze_readme_for_run_command(repo_directory, ssm_session)
-        
+
         if analysis_result["status"] != "Success":
             return {
                 "status": "Failed",
                 "error": f"README analysis failed: {analysis_result.get('error', 'Unknown error')}",
-                "steps_executed": []
+                "steps_executed": [],
             }
-        
+
         run_command = analysis_result["analysis"]["run_command"]
         run_result = ssm_session.execute_command(run_command)
 
@@ -301,13 +304,13 @@ def run_github_project(repo_directory: str, ssm_session: PersistentSSMSession = 
             "status": "Success",
             "repo_directory": repo_directory,
             "command": run_command,
-            "output": run_result
+            "output": run_result,
         }
-        
+
     except Exception as e:
         return {
             "status": "Failed",
             "error": str(e),
             "repo_directory": repo_directory,
-            "command": run_command if run_command else "Unknown"
+            "command": run_command if run_command else "Unknown",
         }
