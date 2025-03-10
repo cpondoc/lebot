@@ -283,7 +283,7 @@ class AWSAgent:
 
             # Parse JSON into a list of tool calls, create thread
             tool_calls = json.loads(plan)
-            thread = await message.create_thread(name=f"🧵 {message.content}")
+            thread = await message.create_thread(name=f"🧵 {message.content[:90]}...")
             await thread.send(f"Processing {len(tool_calls)} steps...")
             await asyncio.sleep(2)
 
