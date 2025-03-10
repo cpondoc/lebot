@@ -21,6 +21,7 @@ from helpers.prompts import (
 import boto3
 from dotenv import load_dotenv
 from tools.session import PersistentSSMSession
+import logging
 
 # Load environment variables from .env file
 load_dotenv()
@@ -35,7 +36,8 @@ INSTANCE_ID = os.getenv("INSTANCE_ID")
 MISTRAL_MODEL = "mistral-large-latest"
 from dotenv import load_dotenv
 
-load_dotenv()
+# Set up logging
+logger = logging.getLogger("discord")
 
 
 class AWSAgent:
@@ -118,10 +120,10 @@ class AWSAgent:
         Extract plan instead of singular tool.
         """
         # Add memory to prompt for plan
-        print("Memory:", memories)
         str_memory = "None"
         if memories:
             str_memory = "\n".join(memories)
+        logger.info(f"Memory: {str_memory}")
 
         # Prompt new model to extract a plan
         new_extract_plan_prompt = EXTRACT_PLAN_PROMPT.replace("memory", str_memory)
@@ -262,54 +264,63 @@ class AWSAgent:
         """
         Extract the proper tool, create a thread, perform all functions in the plan, and return responses.
         """
-        # First, handle the creation of a new user, if not created
-        if message.author not in self.user_state_dict:
-            self.user_state_dict[message.author] = (
-                PersistentSSMSession(message.author),
-                [],
-            )
+        try:
+            # First, handle the creation of a new user, if not created
+            if message.author not in self.user_state_dict:
+                self.user_state_dict[message.author] = (
+                    PersistentSSMSession(message.author),
+                    [],
+                )
 
-        # Extract a plan (which may contain multiple tool calls)
-        current_user_state = self.user_state_dict[message.author]
-        plan = await self.extract_plan(message.content, current_user_state[1])
-        if not plan or plan == "[]":
-            await message.reply(
-                "I couldn't find any AWS-related tasks in your request."
-            )
-            return
+            # Extract a plan (which may contain multiple tool calls)
+            current_user_state = self.user_state_dict[message.author]
+            plan = await self.extract_plan(message.content, current_user_state[1])
+            if not plan or plan == "[]":
+                await message.reply(
+                    "I couldn't find any AWS-related tasks in your request."
+                )
+                return
 
-        # Parse JSON into a list of tool calls, create thread
-        tool_calls = json.loads(plan)
-        thread = await message.create_thread(name=f"AWS Task- {message.author.name}")
-        await thread.send(f"Processing {len(tool_calls)} steps...")
-        await asyncio.sleep(2)
-
-        # Iterate over each tool call and execute
-        step_summaries = []
-        step_memory = ""
-        for i, tool in enumerate(tool_calls):
-            await thread.send(
-                f"**⏳ Step {i+1}/{len(tool_calls)}:** {tool['description']}..."
-            )
-            tool_response, tool_string = await self.get_data_with_tools(
-                tool, message.content, current_user_state[0]
-            )
-
-            # Show plan messages, give agent a bit of time
-            if len(tool_response) > 1500:
-                tool_response = tool_response[:1500] + "..."
-            await thread.send(f"**✅ Step {i+1}**:\n{tool_response}")
-            step_memory += f"**✅ Step {i+1}**:\n{tool_response}"
-            step_summaries.append(tool_string)
-            step_summaries.append(tool_response)
+            # Parse JSON into a list of tool calls, create thread
+            tool_calls = json.loads(plan)
+            thread = await message.create_thread(name=f"🧵 {message.content}")
+            await thread.send(f"Processing {len(tool_calls)} steps...")
             await asyncio.sleep(2)
-        self.user_state_dict[message.author][1].append(step_memory)
 
-        # Send final response in thread
-        final_response = await self.summarize_actions(message.content, step_summaries)
-        if len(final_response) > 1500:
-            final_response = final_response[:1500] + "..."
-        await message.reply(
-            f"**Task completed!** 🎉\n\n{final_response if final_response else '✅ All steps completed successfully.'}\n\n"
-            f"**Want more details?** View the agent's thread [here]({thread.jump_url})."
-        )
+            # Iterate over each tool call and execute
+            step_summaries = []
+            step_memory = ""
+            for i, tool in enumerate(tool_calls):
+                await thread.send(
+                    f"**⏳ Step {i+1}/{len(tool_calls)}:** {tool['description']}..."
+                )
+                tool_response, tool_string = await self.get_data_with_tools(
+                    tool, message.content, current_user_state[0]
+                )
+
+                # Show plan messages, give agent a bit of time
+                if len(tool_response) > 1500:
+                    tool_response = tool_response[:1500] + "..."
+                await thread.send(f"**✅ Step {i+1}**:\n{tool_response}")
+                step_memory += f"**✅ Step {i+1}**:\n{tool_response}"
+                step_summaries.append(tool_string)
+                step_summaries.append(tool_response)
+                await asyncio.sleep(2)
+            self.user_state_dict[message.author][1].append(step_memory)
+
+            # Send final response in thread
+            final_response = await self.summarize_actions(
+                message.content, step_summaries
+            )
+            if len(final_response) > 1500:
+                final_response = final_response[:1500] + "..."
+            await message.reply(
+                f"**Task completed!** 🎉\n\n{final_response if final_response else '✅ All steps completed successfully.'}\n\n"
+                f"**Want more details?** View the agent's thread [here]({thread.jump_url})."
+            )
+
+        except Exception as e:
+            await message.reply(
+                f"**Error occurred ❌**: An error occurred while processing your request. Please try again!"
+            )
+            logger.error(f"Error in run function: {e}")

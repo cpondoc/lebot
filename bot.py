@@ -22,9 +22,11 @@ bot = commands.Bot(command_prefix=PREFIX, intents=intents)
 # Import the Mistral agent from the agent.py file
 agent = AWSAgent()
 
-
 # Get the token from the environment variables
 token = os.getenv("DISCORD_TOKEN")
+
+# Set up team IDs
+team_ids = ["458359284426866701"]
 
 
 @bot.event
@@ -61,15 +63,33 @@ async def on_message(message: discord.Message):
 # Commands
 
 
-# This example command is here to show you how to add commands to the bot.
-# Run !ping with any number of arguments to see the command in action.
-# Feel free to delete this if your project will not need commands.
-@bot.command(name="ping", help="Pings the bot.")
-async def ping(ctx, *, arg=None):
-    if arg is None:
-        await ctx.send("Pong!")
-    else:
-        await ctx.send(f"Pong! Your argument was {arg}")
+# This command is a general help command, and allows users to check on things the bot can do
+@bot.command(name="about", help="Gives a description of what LeBot can do!")
+async def about_command(ctx):
+    team_mentions = ", ".join(f"<@{user_id}>" for user_id in team_ids)
+    help_text = (
+        "**Introducing LeBot!**\n"
+        "LeBot helps you manage and use your cloud infrastructure using only natural language!"
+        " Ask questions about your instance, create folders and files, and even clone and run GitHub repos!\n\n"
+        "To get started, simply ask the bot a question or to do a task, and LeBot will take care of it for you.\n\n"
+        "**Example Questions:**\n"
+        "- *What files and folders are in my current directory?*\n"
+        "- *Clone and set up this repository: <INSERT_REPOSITORY_URL>!*\n"
+        "- *What is the CPU usage on my computer?*\n\n"
+        "**For Support:**\n"
+        f"Reach out to: {team_mentions}.\n\n"
+        "**Available Commands:**\n"
+        "`!about` - Displays this help message.\n"
+        "`!lebron` - LeBron.\n"
+    )
+    await ctx.send(help_text)
+
+
+# LeBron.
+@bot.command(name="lebron", help="Sends a picture of LeBron James.")
+async def lebron(ctx):
+    lebron_image_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/2544.png"  # Replace with an actual LeBron image URL
+    await ctx.send(lebron_image_url)
 
 
 # Start the bot, connecting it to the gateway
