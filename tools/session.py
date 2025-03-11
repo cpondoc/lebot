@@ -97,7 +97,7 @@ class PersistentSSMSession:
 
     def initialize_directory(self, user: str):
         """
-        Initialize home directory for specific user
+        Initialize home directory for specific user and grant ec2-user access
         """
         # First, check if the user exists
         check_user_cmd = f"id {user}"
@@ -128,7 +128,30 @@ class PersistentSSMSession:
             if output["Status"] == "Failed":
                 print("Creating new user failed!")
 
+        # Set the current directory
         self.current_directory = f"/home/{user}"
+
+        # Grant ec2-user access to the user's home directory
+        # We can do this by adding ec2-user to the user's group
+        add_to_group_cmd = f"sudo usermod -a -G {user} ec2-user"
+        response = self.ssm_client.send_command(
+            InstanceIds=[INSTANCE_ID],
+            DocumentName="AWS-RunShellScript",
+            Parameters={"commands": [add_to_group_cmd]},
+        )
+        command_id = response["Command"]["CommandId"]
+        self._wait_for_command(command_id)
+
+        # Set appropriate permissions on the home directory
+        # This gives read/write/execute to the owner and group
+        set_permissions_cmd = f"sudo chmod -R 770 /home/{user} && sudo chown -R {user}:{user} /home/{user}"
+        response = self.ssm_client.send_command(
+            InstanceIds=[INSTANCE_ID],
+            DocumentName="AWS-RunShellScript",
+            Parameters={"commands": [set_permissions_cmd]},
+        )
+        command_id = response["Command"]["CommandId"]
+        self._wait_for_command(command_id)
 
     def execute_command(self, command):
         """Execute a command while maintaining simulated persistence, handling multiple commands separated by &&."""
