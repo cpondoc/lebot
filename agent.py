@@ -17,6 +17,8 @@ from helpers.prompts import (
     TOOLS_PROMPT,
     FINAL_SUMMARY_PROMPT,
     SUMMARIZE_TOOL_USE_PROMPT,
+    TOOL_SUCCESS_PROMPT,
+    SUMMARIZE_TOOL_FAILURE_PROMPT
 )
 import boto3
 from dotenv import load_dotenv
@@ -196,7 +198,6 @@ class AWSAgent:
             {"role": "system", "content": TOOLS_PROMPT},
             {"role": "user", "content": full_tool_str},
         ]
-
         # Require the agent to use a tool with the "any" tool choice.
         tool_response = await self.client.chat.complete_async(
             model=MISTRAL_MODEL,
@@ -204,6 +205,9 @@ class AWSAgent:
             tools=self.tools,
             tool_choice="any",
         )
+
+        await asyncio.sleep(2)
+
         messages.append(tool_response.choices[0].message)
 
         # Perform tool call
@@ -219,9 +223,49 @@ class AWSAgent:
             function_result = json.dumps(function_result)
 
         # Format tool call record for the prompt
-        tool["content"] = function_result
+        tool["output content"] = function_result
         final_tool_str = create_tool_str(tool)
 
+        tool_success_messages = [
+            {
+                "role": "system",
+                "content": f"{TOOL_SUCCESS_PROMPT}\n\n{final_tool_str}" + "\nCompleted:",
+            },
+            {
+                "role": "user",
+                "content": f"{final_tool_str}" + "\nCompleted:",
+            },
+        ]
+
+        response = await self.client.chat.complete_async(
+            model=MISTRAL_MODEL,
+            messages=tool_success_messages,
+        )
+
+        await asyncio.sleep(2)
+
+        tool_success = response.choices[0].message.content
+        print("test1")
+        print(tool_success)
+        print("test2")
+
+        if tool_success not in ["True", "False"]:
+            raise Exception("The model did not return True or False for the model result outcome!")
+        
+        if tool_success == "False":
+            tool_failure_message = [
+                {
+                    "role": "system",
+                    "content": f"{SUMMARIZE_TOOL_FAILURE_PROMPT}\n\n{final_tool_str}",
+                },
+            ]
+            response = await self.client.chat.complete_async(
+                model=MISTRAL_MODEL,
+                messages=tool_failure_message,
+            )
+            return response.choices[0].message.content, final_tool_str, False
+
+        await asyncio.sleep(2)
         # Run the model again to generate the summary.
         summary_messages = [
             {
@@ -234,7 +278,7 @@ class AWSAgent:
             messages=summary_messages,
         )
 
-        return response.choices[0].message.content, final_tool_str
+        return response.choices[0].message.content, final_tool_str, True
 
     async def summarize_actions(self, request: str, messages: list[str]):
         """
@@ -303,9 +347,16 @@ class AWSAgent:
                 await thread.send(
                     f"**⏳ Step {i+1}/{len(tool_calls)}:** {tool['description']}..."
                 )
-                tool_response, tool_string = await self.get_data_with_tools(
+                tool_response, tool_string, tool_success = await self.get_data_with_tools(
                     tool, message.content, current_user_state[0]
                 )
+
+                if not tool_success:
+                    await thread.send(f"**Step❌ {i+1}**:\n{tool_response}")
+                    await message.reply(
+                        f"**Task failure!** ❌\nPlease see the task's thread for more details.\n\n"
+                    )
+                    return
 
                 # Show plan messages, give agent a bit of time
                 if len(tool_response) > 1500:

@@ -135,3 +135,55 @@ List of tools:
 
 Steps you took:
 """
+
+
+
+TOOL_SUCCESS_PROMPT = """
+You are a helpful assistant that is knowledgeable about cloud instances, AWS, Linux, and working with code from GitHub repositories. You have just completed a request to perform an action with a tool.
+You are now tasked with determining if the execution of the success was successful in terms of what was asked of you.
+
+Based on the output of using the tool and trying to complete the request, you return one of "True" or "False" to denote if the request was successfully completed based on the provided context of the
+executed request.
+
+A request is successfully completed if the desired outcome of the request is achieved.
+
+Note that your job is to fill in "True" or "False" in the "Completed" field and nothing more.
+
+Here are some examples of determining if a command was successfully completed:
+
+Example 1
+Function: run_command
+command: cd test_folder
+description: Navigating into the test_folder directory.
+output content: Directory not found
+Completed: False
+
+Example 2
+Function: run_command
+command: ls 
+description: Listing the contents of the current directory.
+output content: directory1, directory2, directory3, directory4
+Completed: False
+
+Example 3
+Function: run_command
+command: ls
+description: Listing the contents of the current directory.
+output content:
+Completed: True
+""" 
+
+SUMMARIZE_TOOL_FAILURE_PROMPT = """
+You are a helpful assistant that is knowledgeable about cloud instances, AWS, Linux, and working with code from GitHub repositories. You have just tried to complete a request to perform an action with a tool, but the requestion execution did NOT succeed.
+
+After trying to use the tool and but unsuccessfully completing the user's request, now provide the outcome and why the request execution was unsuccessful. Some guidelines:
+- Please do not use the name of the tool in the answer, but instead describe what the tool was trying to do, based on the list of tools below. If your tool required specific parameters, describe, those, as well.
+- If there is not output from running the command, the result will be "EMPTY." For instance, if there are no files after running `ls`, the result will be "EMPTY," so DO NOT MAKE UP FILES.
+- USE MARKDOWN.
+- FINALLY, DO NOT RETURN A LIST CONTAINING DIFFERENT TOOLS AND COMMANDS USED: use complete sentences.
+
+List of tools:
+{ALL_TOOLS}
+
+Description of tool use:
+"""

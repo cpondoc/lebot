@@ -269,8 +269,11 @@ class PersistentSSMSession:
             output = self.ssm_client.get_command_invocation(
                 CommandId=command_id, InstanceId=INSTANCE_ID
             )
-
+            
             self.command_history.append(command)
+            # ALSO ADAPT OTHER AREAS
+            if output["Status"] == "Failed":
+                return output["StandardErrorContent"]
             return output["StandardOutputContent"]
         except Exception as e:
             return f"Error executing command: {e}"
