@@ -280,10 +280,19 @@ class AWSAgent:
                     "I couldn't find any AWS-related tasks in your request."
                 )
                 return
-
-            # Parse JSON into a list of tool calls, create thread
             tool_calls = json.loads(plan)
-            thread = await message.create_thread(name=f"🧵 {message.content[:90]}...")
+
+            # Create thread
+            MAX_TITLE_LENGTH = 100
+            prefix = "🧵 "
+            max_content_length = MAX_TITLE_LENGTH - len(prefix)
+
+            if len(message.content) > max_content_length:
+                thread_name = f"{prefix}{message.content[:max_content_length - 3]}..."
+            else:
+                thread_name = f"{prefix}{message.content}"
+
+            thread = await message.create_thread(name=thread_name)
             await thread.send(f"Processing {len(tool_calls)} steps...")
             await asyncio.sleep(2)
 
