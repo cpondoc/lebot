@@ -309,8 +309,13 @@ class AWSAgent:
 
                 # Show plan messages, give agent a bit of time
                 if len(tool_response) > 1500:
-                    tool_response = tool_response[:1500] + "..."
-                await thread.send(f"**✅ Step {i+1}**:\n{tool_response}")
+                    for j in range(0, len(tool_response), 1500):
+                        if j == 0:
+                            await thread.send(f"**✅ Step {i+1}**:\n{tool_response[j : j + 1500]}")
+                        else:
+                            await message.reply(f"{tool_response[j : j + 1500]}")
+                else:
+                    await thread.send(f"**✅ Step {i+1}**:\n{tool_response}")
                 step_memory += f"**✅ Step {i+1}**:\n{tool_response}"
                 step_summaries.append(tool_string)
                 step_summaries.append(tool_response)
@@ -322,10 +327,16 @@ class AWSAgent:
                 message.content, step_summaries
             )
             if len(final_response) > 1500:
-                final_response = final_response[:1500] + "..."
+                for j in range(0, len(final_response), 1500):
+                    await message.reply(
+                        f"**Task completed!** 🎉\n\n{final_response[j : j + 1500] if final_response[j : j + 1500] else '✅ All steps completed successfully.'}\n\n"
+                    )
+            else:
+                await message.reply(
+                    f"**Task completed!** 🎉\n\n{final_response if final_response else '✅ All steps completed successfully.'}\n\n"
+                )
             await message.reply(
-                f"**Task completed!** 🎉\n\n{final_response if final_response else '✅ All steps completed successfully.'}\n\n"
-                f"**Want more details?** View the agent's thread [here]({thread.jump_url})."
+                    f"**Want more details?** View the agent's thread [here]({thread.jump_url})."
             )
 
         except Exception as e:
