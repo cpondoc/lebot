@@ -96,9 +96,9 @@ async def examples_command(ctx):
     examples_text = (
         "**Example Repositories**\n"
         "Below are some example repositories you can use to try out LeBot!\n"
-        "- [LeBron Text Printer](https://github.com/natalieg1/bash-lebron-script)\n"
-        "- [Basketball ASCII Art](https://github.com/natalieg1/basketball-ascii-art)\n"
-        "- [Inspirational Quote Generator](https://github.com/natalieg1/inspirational-quote-generator)\n"
+        "- [LeBron Text Printer (Bash)](https://github.com/natalieg1/bash-lebron-script)\n"
+        "- [Basketball ASCII Art (C++)](https://github.com/natalieg1/basketball-ascii-art)\n"
+        "- [LeBron Quote Generator (Python)](https://github.com/natalieg1/lebron-quote-generator)\n"
     )
     await ctx.send(examples_text)
 
