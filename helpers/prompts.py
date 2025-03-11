@@ -147,8 +147,6 @@ executed request.
 
 A request is successfully completed if the desired outcome of the request is achieved.
 
-Note that your job is to fill in "True" or "False" in the "Completed" field and nothing more.
-
 Here are some examples of determining if a command was successfully completed:
 
 Example 1
@@ -171,6 +169,10 @@ command: ls
 description: Listing the contents of the current directory.
 output content:
 Completed: True
+
+IMPORTANT NOTE: Your job is always to fill in "True" or "False" in the "Completed" field and nothing more. You should should NEVER
+provide text for the Function:, command:, description:, or output content: fields. In other words, you are only able to give one
+word responses of "True" or "False" based off the provided context!
 """ 
 
 SUMMARIZE_TOOL_FAILURE_PROMPT = """
@@ -186,4 +188,64 @@ List of tools:
 {ALL_TOOLS}
 
 Description of tool use:
+"""
+
+
+UNDO_STEPS_PROMPT = """
+You are a helpful assistant that is knowledgeable about cloud instances, AWS, Linux, and working with code from GitHub repositories. You have just tried to complete a request to perform an action with a tool, but the requestion execution did NOT succeed.
+
+Since the execution of the request failed, you now want to undo ALL state changes that were done in order to carry out the request. You carried out the request in steps, and you now want to undo ALL state changes that were made in the unsuccessful
+execution of the request.
+
+If there is nothing to do to undo the steps, return an empty list: `[]`.  
+
+Otherwise, to undo state changes from the steps an unsuccessful request exection, you MUST generate a structured plan using the following tools:  
+{ALL_TOOLS}
+
+### **Response Format:**
+Return a JSON list of objects. Each object must have:  
+- `"tool"`: The exact tool name (string).  
+- Parameters required by the specific tool.
+- `"description"`: A description of the action you are taking.
+
+### **Examples:**  
+Example 1:
+STEPS
+Step❌ 1:
+The request execution was unsuccessful because the process attempted to display the contents of a file named "testing," but the file was not found in the directory. The specific error message was "cat: testing: No such file or directory," indicating that the file does not exist in the specified location. This suggests that either the file was not created, was deleted, or is located in a different directory.
+RESPONSE TO UNDO THESE STEPS
+`[]`
+
+Example 2:
+STEPS
+Step✅ 1:
+To complete the user's request, a command was run within the AWS instance to create a new directory. The command mkdir new_directory was used, which creates a directory named "new_directory." There was no output from running this command, so the result is "EMPTY."
+Step❌ 2:
+The request to navigate into the other_directory directory was unsuccessful because the directory does not exist. The output received was:
+Directory not found
+This indicates that there is no directory named random in the current path, which is why the attempt to change into it failed.
+RESPONSE TO UNDO THESE STEPS
+`[{{"tool": "run_command", "command": "rm -rf new_directory", "description": "Removing the new_directory directory."}}]`
+
+Example 3:
+STEPS
+✅ Step 1:
+To complete the request of creating a new file, I used a tool that runs commands within an AWS instance. The specific command I utilized was touch new_file.txt, which creates an empty file named new_file.txt.
+The result of running this command is "EMPTY," as the touch command does not produce any output; it simply ensures the file exists.
+✅ Step 2:
+To complete the user's request, the command to add the text 'hello' to new_file.txt was executed within the AWS instance.
+The result of running this command is:
+EMPTY
+This is because the command does not produce any output to the terminal; it simply writes the text to the file.
+Step❌ 3:
+The attempt to run a Python script named testing.py was unsuccessful. The error occurred because the file testing.py could not be found in the specified directory /home/joey_obrien/. This resulted in a FileNotFoundError, specifically [Errno 2] No such file or directory. Consequently, the command to execute the script failed with an exit status of 2.
+
+Here is the error output:
+python3: can't open file '/home/joey_obrien/testing.py': [Errno 2] No such file or directory
+ERROR conda.cli.main_run:execute(125): `conda run bash -c cd '/home/joey_obrien' && python3 testing.py` failed. (See above for error)
+failed to run commands: exit status 2
+
+Please ensure that the testing.py file exists in the specified directory or provide the correct path to the file.
+RESPONSE TO UNDO THESE STEPS
+`[{{"tool": "run_command", "command": "rm new_file.txt", "description": "Removing the new_file.txt directory."}}]`
 """

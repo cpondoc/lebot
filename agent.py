@@ -18,7 +18,8 @@ from helpers.prompts import (
     FINAL_SUMMARY_PROMPT,
     SUMMARIZE_TOOL_USE_PROMPT,
     TOOL_SUCCESS_PROMPT,
-    SUMMARIZE_TOOL_FAILURE_PROMPT
+    SUMMARIZE_TOOL_FAILURE_PROMPT,
+    UNDO_STEPS_PROMPT
 )
 import boto3
 from dotenv import load_dotenv
@@ -245,9 +246,14 @@ class AWSAgent:
         await asyncio.sleep(2)
 
         tool_success = response.choices[0].message.content
-        print("test1")
-        print(tool_success)
-        print("test2")
+
+        # Sometimes the model doesn't listen, but it still gives True or False first, so extract that and ignore everything else
+        print(f"Initial tool success: {tool_success}")
+
+        if tool_success != "False" and tool_success != "True":
+            tool_success = tool_success.split()
+            tool_success = tool_success[0]
+        print(f"Updated tool success: {tool_success}")
 
         if tool_success not in ["True", "False"]:
             raise Exception("The model did not return True or False for the model result outcome!")
@@ -263,6 +269,7 @@ class AWSAgent:
                 model=MISTRAL_MODEL,
                 messages=tool_failure_message,
             )
+            await asyncio.sleep(2)
             return response.choices[0].message.content, final_tool_str, False
 
         await asyncio.sleep(2)
@@ -277,6 +284,7 @@ class AWSAgent:
             model=MISTRAL_MODEL,
             messages=summary_messages,
         )
+        await asyncio.sleep(2)
 
         return response.choices[0].message.content, final_tool_str, True
 
@@ -303,6 +311,7 @@ class AWSAgent:
             ],
         )
         return response.choices[0].message.content
+
 
     async def run(self, message: discord.Message):
         """
@@ -353,6 +362,52 @@ class AWSAgent:
 
                 if not tool_success:
                     await thread.send(f"**Step❌ {i+1}**:\n{tool_response}")
+                    step_memory += f"**❌ Step {i+1}**:\n{tool_response}\n"
+
+                    undo_steps_messages = [
+                        {
+                            "role": "system",
+                            "content": f"{UNDO_STEPS_PROMPT}",
+                        },
+                        {
+                            "role": "user",
+                            "content": f"STEPS\n{step_memory}\nRESPONSE TO UNDO THESE STEPS\n",
+                        },
+                    ]
+
+
+                    response = await self.client.chat.complete_async(
+                        model=MISTRAL_MODEL,
+                        messages=undo_steps_messages,
+                    )
+
+                    print(response.choices[0].message.content)
+                    print()
+
+                    # The response is adding ```json to the front and ``` to the end of the message, so extract the relevant json
+                    response_json = response.choices[0].message.content
+                    response_json = response_json[response_json.find("["):response_json.rfind("]")+1]
+                    undo_tool_calls = json.loads(response_json)
+                    print(response_json)
+
+                    await thread.send(f"🔄 We will now undo any altered state!")
+                    for j, undo_tool in enumerate(undo_tool_calls):
+                        await thread.send(
+                            f"**⏳ Step {j+1} of Reversing/{len(undo_tool_calls)}:** {undo_tool['description']}..."
+                        )
+                        undo_tool_response, _, undo_tool_success = await self.get_data_with_tools(
+                            undo_tool, message.content, current_user_state[0]
+                        )
+
+                        if not undo_tool_success:
+                            await thread.send(
+                                f"**❌ Step {j+1}/{len(undo_tool_calls)} of Reversing:** Failure with reversing output! Please work to undo state changes and resolve this error with new commands."
+                            )
+                            break
+
+                        await thread.send(f"**🔄✅ Step {i+1} of Reversing**:\n{undo_tool_response}")
+
+
                     await message.reply(
                         f"**Task failure!** ❌\nPlease see the task's thread for more details.\n\n"
                     )
