@@ -30,7 +30,7 @@ agent = AWSAgent()
 token = os.getenv("DISCORD_TOKEN")
 
 # Set up team IDs
-team_ids = ["458359284426866701"]
+team_ids = ["458359284426866701", "1334071001041997866", "1035398837017260103"]
 
 
 @bot.event
@@ -78,7 +78,7 @@ async def about_command(ctx):
         "To get started, simply ask the bot a question or to do a task, and LeBot will take care of it for you.\n\n"
         "**Example Questions:**\n"
         "- *What files and folders are in my current directory?*\n"
-        "- *Clone and set up this repository: https://github.com/natalieg1/inspirational-quote-generator!*\n"
+        "- *Clone and set up this repository: https://github.com/natalieg1/lebron-quote-generator!*\n"
         "- *What is the CPU usage on my instance?*\n\n"
         "**For Support:**\n"
         f"Reach out to: {team_mentions}.\n\n"
