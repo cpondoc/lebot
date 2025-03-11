@@ -74,21 +74,35 @@ async def about_command(ctx):
         "To get started, simply ask the bot a question or to do a task, and LeBot will take care of it for you.\n\n"
         "**Example Questions:**\n"
         "- *What files and folders are in my current directory?*\n"
-        "- *Clone and set up this repository: <INSERT_REPOSITORY_URL>!*\n"
+        "- *Clone and set up this repository: https://github.com/natalieg1/inspirational-quote-generator!*\n"
         "- *What is the CPU usage on my instance?*\n\n"
         "**For Support:**\n"
         f"Reach out to: {team_mentions}.\n\n"
         "**Available Commands:**\n"
         "`!about` - Displays this help message.\n"
+        "`!examples` - Gives example repositories to play around with.\n"
         "`!lebron` - LeBron.\n"
     )
     await ctx.send(help_text)
 
 
+# Provide a list of vetted repositories to use for playing around with the bot.
+@bot.command(name="examples", help="More help with sample commands.")
+async def examples_command(ctx):
+    examples_text = (
+        "**Example Repositories**\n"
+        "Below are some example repositories you can use to try out LeBot!\n"
+        "- [LeBron Text Printer](https://github.com/natalieg1/bash-lebron-script)\n"
+        "- [Basketball ASCII Art](https://github.com/natalieg1/basketball-ascii-art)\n"
+        "- [Inspirational Quote Generator](https://github.com/natalieg1/inspirational-quote-generator)\n"
+    )
+    await ctx.send(examples_text)
+
+
 # LeBron.
 @bot.command(name="lebron", help="Sends a picture of LeBron James.")
 async def lebron(ctx):
-    lebron_image_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/2544.png"  # Replace with an actual LeBron image URL
+    lebron_image_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/2544.png"
     await ctx.send(lebron_image_url)
 
 
