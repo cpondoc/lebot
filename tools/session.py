@@ -8,6 +8,7 @@ import boto3
 import botocore
 import time
 from dotenv import load_dotenv
+import logging
 
 load_dotenv()
 
@@ -16,6 +17,17 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION")
 INSTANCE_ID = os.getenv("INSTANCE_ID")
+
+
+# Create a filter that blocks the heartbeat warning messages and their tracebacks
+class DiscordHeartbeatFilter(logging.Filter):
+    def filter(self, record):
+        return "heartbeat blocked" not in record.getMessage()
+
+
+# Suppress warnings from discord.gateway specifically
+gateway_logger = logging.getLogger("discord.gateway")
+gateway_logger.addFilter(DiscordHeartbeatFilter())
 
 
 class PersistentSSMSession:

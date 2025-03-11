@@ -1,3 +1,7 @@
+"""
+Core of the bot, which sends queries over to the agent or handles ! commands.
+"""
+
 import os
 import discord
 import logging
