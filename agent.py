@@ -384,7 +384,7 @@ class AWSAgent:
                 if not tool_success:
                     await thread.send(f"**Step❌ {i+1}**:\n{tool_response}")
                     step_memory += f"**❌ Step {i+1}**:\n{tool_response}\n"
-                    await thread.send(f"🔄 We will now undo any altered state!")
+                    await thread.send(f"🔄 We will now attempt to undo any altered state!")
                     for j in range(i, -1, -1):
                         await thread.send(
                             f"**⏳ Reversing Step {j+1}/{i+1}:** {tool_calls[j]['description']}..."
