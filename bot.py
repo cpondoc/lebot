@@ -87,8 +87,8 @@ async def about_command(ctx):
         "`!examples` - Gives example repositories to play around with. LeBot may not work with repos that are not listed.\n"
         "`!lebron` - LeBron.\n\n"
         "**Project Info**\n"
-        "- [LeBot Code](https://github.com/cpondoc/lebot)"
-        "- [LeBot Video](https://www.youtube.com/watch?v=Cs7Up_YK6V4)"
+        "- [LeBot Code](https://github.com/cpondoc/lebot)\n"
+        "- [LeBot Video](https://www.youtube.com/watch?v=Cs7Up_YK6V4)\n"
     )
     await ctx.send(help_text)
 
