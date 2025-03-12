@@ -74,7 +74,7 @@ async def about_command(ctx):
     help_text = (
         "**Introducing LeBot!**\n"
         "LeBot helps you manage and use your cloud infrastructure using only natural language!"
-        " Ask questions about your instance, create folders and files, and even clone and run GitHub repos!\n\n"
+        "Ask questions about your instance, create folders and files, and even clone and run GitHub repos!\n\n"
         "To get started, simply ask the bot a question or to do a task, and LeBot will take care of it for you.\n\n"
         "**Example Questions:**\n"
         "- *What files and folders are in my current directory?*\n"
@@ -84,7 +84,7 @@ async def about_command(ctx):
         f"Reach out to: {team_mentions}.\n\n"
         "**Available Commands:**\n"
         "`!about` - Displays this help message.\n"
-        "`!examples` - Gives example repositories to play around with.\n"
+        "`!examples` - Gives example repositories to play around with. LeBot may not work with repos that are not listed.\n"
         "`!lebron` - LeBron.\n"
     )
     await ctx.send(help_text)
@@ -96,9 +96,9 @@ async def examples_command(ctx):
     examples_text = (
         "**Example Repositories**\n"
         "Below are some example repositories you can use to try out LeBot!\n"
-        "- [LeBron Text Printer (Bash)](https://github.com/natalieg1/bash-lebron-script)\n"
-        "- [Basketball ASCII Art (C++)](https://github.com/natalieg1/basketball-ascii-art)\n"
-        "- [LeBron Quote Generator (Python)](https://github.com/natalieg1/lebron-quote-generator)\n"
+        "- [LeBron Text Printer (Bash)] https://github.com/natalieg1/bash-lebron-script\n"
+        "- [Basketball ASCII Art (C++)] https://github.com/natalieg1/basketball-ascii-art\n"
+        "- [LeBron Quote Generator (Python)] https://github.com/natalieg1/lebron-quote-generator\n"
     )
     await ctx.send(examples_text)
 
