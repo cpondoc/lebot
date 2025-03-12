@@ -128,6 +128,7 @@ user asked for a specific answer, be sure to provide the answer, as well. Some g
 - You have already completed the steps below: you do not have to perform the actions again.
 - Please do not use the name of the tool in the answer, but instead describe what the tool does, based on the list of tools below. If your tool required specific parameters, describe, those, as well.
 - USE MARKDOWN.
+- ALWAYS USE MULTILINE CODE BLOCKS to return output, specifically if it contains ASCII art.
 - FINALLY, DO NOT RETURN A LIST CONTAINING DIFFERENT TOOLS AND COMMANDS USED: use complete sentences.
 
 List of tools:

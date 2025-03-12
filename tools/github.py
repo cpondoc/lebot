@@ -135,8 +135,6 @@ def analyze_readme_for_run_command(
                 cat README.md;
             elif [ -f README.txt ]; then
                 cat README.txt;
-            elif [ -f README ]; then
-                cat README;
             elif [ -f readme.md ]; then
                 cat readme.md;
             else
@@ -162,11 +160,7 @@ def analyze_readme_for_run_command(
         echo -e "\\n=== Python Files ===" &&
         find . -name "*.py" | sort &&
         echo -e "\\n=== Shell Scripts ===" &&
-        find . -name "*.sh" | sort &&
-        echo -e "\\n=== JavaScript Files ===" &&
-        find . -name "*.js" | sort &&
-        echo -e "\\n=== Common Entry Points ===" &&
-        find . -name "main.py" -o -name "app.py" -o -name "index.js" -o -name "server.js" -o -name "start.sh"
+        find . -name "*.sh" | sort
         """
 
         runable_files_result = ssm_session.execute_command(runable_files_command)
