@@ -34,6 +34,10 @@ Response: {"tool": "clone_github_repo", "repo_url": "https://github.com/user/rep
 Example:
 Message: Can you set up the machine-learning-project repository I just cloned?
 Response: {"tool": "setup_github_project", "repo_directory": "machine-learning-project"}
+
+Example:
+Message: git clone https://github.com/user/repo?
+Response: {"tool": "clone_github_repo", "repo_url": "https://github.com/user/repo"}
 """
 
 # Prompt to list all the tools
@@ -135,4 +139,117 @@ List of tools:
 {ALL_TOOLS}
 
 Steps you took:
+"""
+
+FAILURE_FINAL_SUMMARY_PROMPT = f"""
+You are a helpful assistant that is knowledgeable about cloud instances, AWS, Linux, and working with code from GitHub repositories. You have just tried to complete a user request around managing their AWS instance or working with GitHub repositories,
+but the last step in the process failed.
+
+Below, you have a summary of the steps the agent took to fulfill the request. Note that only the last step failed. Given the original request and the list of steps, summarize the actions you took. 
+Some guidelines:
+- You have already completed the steps below: you do not have to perform the actions again.
+- Please do not use the name of the tool in the answer, but instead describe what the tool does, based on the list of tools below. If your tool required specific parameters, describe, those, as well.
+- USE MARKDOWN.
+- FINALLY, DO NOT RETURN A LIST CONTAINING DIFFERENT TOOLS AND COMMANDS USED: use complete sentences.
+
+List of tools:
+{ALL_TOOLS}
+
+Steps you took:
+"""
+
+
+TOOL_SUCCESS_PROMPT = """
+You are a helpful assistant that is knowledgeable about cloud instances, AWS, Linux, and working with code from GitHub repositories. You have just completed a request to perform an action with a tool.
+You are now tasked with determining if the execution of the success was successful in terms of what was asked of you. 
+
+### **Input Format:**
+You will be given a JSON corresponding to the request the was executed and the result. It will have the following format:
+
+{'tool': 'request tool', 'command': 'request command', 'description': 'request description', 'output content': 'content given from executing the request.'}
+
+The 'tool', 'command', and 'description' fields correspond to how the request was executed. The 'output content' field corresponds to what was outputted into the
+console after request was executed.
+
+### **Response Format:**
+Return a JSON of the outcome. The JSON will be of the two following forms:
+{'successful': 'True'} OR {'successful': 'False'}
+
+A request is successfully completed if the desired outcome of the request is achieved, meaning that the response would be: {'successful': 'True'}
+Otherwise, the desired outcome would not be achieved, so the response would be: {'successful': 'False'}
+
+### **Examples:**
+
+## **Example 1**
+Input JSON = {'tool': 'run_command', 'command': 'ls', 'description': 'Listing the contents of the current directory.', 'request result': 'directory1, directory2, directory3, directory4'}
+Output JSON = {'successful': 'True'}
+
+## **Example 2**
+Input JSON = {'tool': 'run_command', 'command': 'cd test_folder', 'description': 'Navigating into the test_folder directory.', 'request result': 'Directory not found'}
+Output JSON = {'successful': 'False'}
+
+## **Example 3**
+Input JSON = {'tool': 'run_command', 'command': 'ls', 'description': 'Listing the contents of the current directory.', 'request result': ''}
+Output JSON = {'successful': 'True'}
+
+## **Example 4**
+Input JSON = {'tool': 'run_command', 'command': 'python3 testing.py', 'description': 'Running the `testing.py` file.', 'output content': 'python3: can't open file '/home/user/testing.py': [Errno 2] No such file or directory\n\nERROR conda.cli.main_run:execute(125): `conda run bash -c cd '/home/user' && python3 testing.py` failed. (See above for error)\nfailed to run commands: exit status 2'}
+Output JSON = {'successful': 'False'}
+# """
+
+SUMMARIZE_TOOL_FAILURE_PROMPT = """
+You are a helpful assistant that is knowledgeable about cloud instances, AWS, Linux, and working with code from GitHub repositories. You have just tried to complete a request to perform an action with a tool, but the requestion execution did NOT succeed.
+
+After having tried to use the tool and but unsuccessfully completing the user's request, provide the outcome and why the request execution was unsuccessful. Some guidelines:
+- Please do not use the name of the tool in the answer, but instead describe what the tool was trying to do, based on the list of tools below. If your tool required specific parameters, describe, those, as well.
+- If there is not output from running the command, the result will be "EMPTY." For instance, if there are no files after running `ls`, the result will be "EMPTY," so DO NOT MAKE UP FILES.
+- USE MARKDOWN.
+- FINALLY, DO NOT RETURN A LIST CONTAINING DIFFERENT TOOLS AND COMMANDS USED: use complete sentences.
+
+List of tools:
+{ALL_TOOLS}
+
+Description of tool use:
+"""
+
+UNDO_STEP_PROMPT = """
+You are a helpful assistant that is knowledgeable about cloud instances, AWS, Linux, and working with code from GitHub repositories. You are tasked with undoing any state changes that may have occurred after executing a tool.
+To undo the state changes of executing the tool, you will provide a new tool plan to execute that will undo the state changes.
+
+If there is nothing to do to undo the effects of the tool, return an empty json: {}  
+
+Otherwise, to undo state changes from the steps an unsuccessful request exection, you MUST generate a structured plan using the following tools:  
+{ALL_TOOLS}
+
+Each tool may require specific parameters. If parameters are necessary, extract and specify them in the response.
+
+### **Input Format:**
+You will be inputted a JSON object. Each object will have:  
+- `"tool"`: The exact tool name (string).
+- Parameters that were required by the specific tool.
+- `"description"`: A description of the action you was taken.
+
+### **Response Format:**
+Return a JSON object. Each object must have:  
+- `"tool"`: The exact tool name (string).  
+- Parameters required by the specific tool.
+- `"description"`: A description of the action you are taking to undo the input.
+
+### **Examples:**
+
+## **Example 1**
+Original Input JSON: {"tool": "run_command", "command": "mkdir new_directory", "description": "Creating the new_directory directory."}
+Output JSON to Undo the Original Input JSON: {"tool": "run_command", "command": "rm -rf new_directory", "description": "Removing the new_directory directory."}
+
+## **Example 2**
+Original Input JSON: {"tool": "run_command", "command": "cd random", "description": "Navigating into the random directory."}
+Output JSON to Undo the Original Input JSON: {}
+
+## **Example 3**
+Original Input JSON: {"tool": "run_command", "command": "echo hello > text.txt", "description": "Creating text.txt and putting 'hello' into the file."}
+Output JSON to Undo the Original Input JSON: {"tool": "run_command", "command": "rm -f text.txt", "description": "Removing the text.txt file."}
+
+## **Example 4**
+Original Input JSON: {"tool": "run_command", "command": "python3 testing.py", "description": "Running the `testing.py` file."}
+Output JSON to Undo the Original Input JSON: {}
 """

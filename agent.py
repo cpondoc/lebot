@@ -17,6 +17,10 @@ from helpers.prompts import (
     TOOLS_PROMPT,
     FINAL_SUMMARY_PROMPT,
     SUMMARIZE_TOOL_USE_PROMPT,
+    TOOL_SUCCESS_PROMPT,
+    SUMMARIZE_TOOL_FAILURE_PROMPT,
+    UNDO_STEP_PROMPT,
+    FAILURE_FINAL_SUMMARY_PROMPT
 )
 import boto3
 from dotenv import load_dotenv
@@ -196,7 +200,6 @@ class AWSAgent:
             {"role": "system", "content": TOOLS_PROMPT},
             {"role": "user", "content": full_tool_str},
         ]
-
         # Require the agent to use a tool with the "any" tool choice.
         tool_response = await self.client.chat.complete_async(
             model=MISTRAL_MODEL,
@@ -204,6 +207,9 @@ class AWSAgent:
             tools=self.tools,
             tool_choice="any",
         )
+
+        await asyncio.sleep(2)
+
         messages.append(tool_response.choices[0].message)
 
         # Perform tool call
@@ -215,13 +221,60 @@ class AWSAgent:
 
         # Ensure function_result is a string before appending
         function_result = tools_to_functions[function_name](**function_params)
+
         if not isinstance(function_result, str):
             function_result = json.dumps(function_result)
 
         # Format tool call record for the prompt
-        tool["content"] = function_result
+        tool["request result"] = function_result
+
         final_tool_str = create_tool_str(tool)
 
+        tool_success = True
+
+
+        # Have the model determine if the tool execution was successful
+        # We ignore git for errors, because the response doesn't provide enought
+        # information (at least for git clone, we extrapolate to other git commands though
+        # too for this)
+        # if (tool["tool"] == "setup_github_project") or (tool["tool"] == "run_command" and "git" in tool["command"]):
+        #     tool_success = True
+        # else:
+        tool_success_messages = [
+            {
+                "role": "system",
+                "content": f"{TOOL_SUCCESS_PROMPT}",
+            },
+            {
+                "role": "user",
+                "content": f"Input JSON = {str(tool)}\nOutput JSON = ",
+            },
+        ]
+        response = await self.client.chat.complete_async(
+            model=MISTRAL_MODEL,
+            messages=tool_success_messages,
+            response_format={"type": "json_object"},
+        )
+        await asyncio.sleep(2)
+        tool_success = json.loads(response.choices[0].message.content)["successful"]
+        if tool_success not in ["True", "False"]:
+            raise Exception("The model did not return True or False for the successful field!")
+        
+        if tool_success == "False":
+            tool_failure_message = [
+                {
+                    "role": "system",
+                    "content": f"{SUMMARIZE_TOOL_FAILURE_PROMPT}\n\n{final_tool_str}",
+                },
+            ]
+            response = await self.client.chat.complete_async(
+                model=MISTRAL_MODEL,
+                messages=tool_failure_message,
+            )
+            await asyncio.sleep(2)
+            return response.choices[0].message.content, final_tool_str, False
+
+        await asyncio.sleep(2)
         # Run the model again to generate the summary.
         summary_messages = [
             {
@@ -233,10 +286,11 @@ class AWSAgent:
             model=MISTRAL_MODEL,
             messages=summary_messages,
         )
+        await asyncio.sleep(2)
 
-        return response.choices[0].message.content, final_tool_str
+        return response.choices[0].message.content, final_tool_str, True
 
-    async def summarize_actions(self, request: str, messages: list[str]):
+    async def summarize_actions(self, request: str, messages: list[str], success: bool):
         """
         Prompt a model to summarize all of the messages.
         """
@@ -258,7 +312,19 @@ class AWSAgent:
                 {"role": "user", "content": request},
             ],
         )
+        if not success:
+            response = await self.client.chat.complete_async(
+                model=MISTRAL_MODEL,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": f"{FAILURE_FINAL_SUMMARY_PROMPT}\n\n{formatted_steps}",
+                    },
+                    {"role": "user", "content": request},
+                ],
+            )
         return response.choices[0].message.content
+
 
     async def run(self, message: discord.Message):
         """
@@ -299,11 +365,14 @@ class AWSAgent:
             # Iterate over each tool call and execute
             step_summaries = []
             step_memory = ""
+            tool_success = True
+
+            undo_failures = False
             for i, tool in enumerate(tool_calls):
                 await thread.send(
                     f"**⏳ Step {i+1}/{len(tool_calls)}:** {tool['description']}..."
                 )
-                tool_response, tool_string = await self.get_data_with_tools(
+                tool_response, tool_string, tool_success = await self.get_data_with_tools(
                     tool, message.content, current_user_state[0]
                 )
 
@@ -317,32 +386,129 @@ class AWSAgent:
                 else:
                     await thread.send(f"**✅ Step {i+1}**:\n{tool_response}")
                 step_memory += f"**✅ Step {i+1}**:\n{tool_response}"
+
                 step_summaries.append(tool_string)
                 step_summaries.append(tool_response)
+
+                if not tool_success:
+                    await thread.send(f"**Step❌ {i+1}**:\n{tool_response}")
+                    step_memory += f"**❌ Step {i+1}**:\n{tool_response}\n"
+                    await thread.send(f"🔄 We will now attempt to undo any altered state!")
+                    for j in range(i, -1, -1):
+                        await thread.send(
+                            f"**⏳ Reversing Step {j+1}/{i+1}:** {tool_calls[j]['description']}..."
+                        )
+                        undo_steps_messages = [
+                            {
+                                "role": "system",
+                                "content": f"{UNDO_STEP_PROMPT}",
+                            },
+                            {
+                                "role": "user",
+                                "content": f"Original Input JSON:{tool_calls[j]}\nOutput JSON to Undo the Original Input JSON:\n",
+                            },
+                        ] 
+
+                        response = await self.client.chat.complete_async(
+                            model=MISTRAL_MODEL,
+                            messages=undo_steps_messages,
+                            response_format={"type": "json_object"},          
+                        )
+                        await asyncio.sleep(2)
+
+                        undo_tool = response.choices[0].message.content
+
+                        if undo_tool == "{}":
+                            await thread.send(f"**🔄✅ Reversing Step {j+1}**:\n{tool_calls[j]["description"][:len(tool_calls[j]["description"])-1]} did not alter any state!")
+                            continue
+                        undo_tool = json.loads(undo_tool)
+                        undo_tool_response, _, undo_tool_success = await self.get_data_with_tools(
+                            undo_tool, message.content, current_user_state[0]
+                        )
+                        if not undo_tool_success:
+                            await thread.send(f"**🔄❌ Reversing Step {j+1} Failed**:\n We're sorry, but reversing this command failed, and altered state may still persist from this step!")
+                            undo_failures = True
+                        await thread.send(f"**🔄✅ Reversing Step {j+1} **:\n{undo_tool_response}")
+                    if not undo_failures:
+                        await thread.send(f"**🔄🎉** All altered state has been undone to the best of our ability!")
+                    else:
+                        await thread.send(f"**🔄🎉** We undid as much altered state as possible with our best efforts, but there were some errors identified!")
+                    break
+
+                await thread.send(f"**✅ Step {i+1}**:\n{tool_response}")
+                step_memory += f"**✅ Step {i+1}**:\n{tool_response}"
                 await asyncio.sleep(2)
+
             self.user_state_dict[message.author][1].append(step_memory)
 
             # Send final response in thread
             final_response = await self.summarize_actions(
-                message.content, step_summaries
+                message.content, step_summaries, tool_success
             )
-            if len(final_response) > 1900:
-                for j in range(0, len(final_response), 1900):
-                    if j == 0:
-                        await message.reply(
-                            f"**Task completed!** 🎉\n\n{final_response[j : j + 1900] if final_response[j : j + 1900] else '✅ All steps completed successfully.'}\n\n"
-                        )
-                    else:
-                        await message.reply(
-                            f"{final_response[j : j + 1900] if final_response[j : j + 1900] else '✅ All steps completed successfully.'}\n\n"
-                        )
-            else:
+            
+            if tool_success:
                 await message.reply(
                     f"**Task completed!** 🎉\n\n{final_response if final_response else '✅ All steps completed successfully.'}\n\n"
-                )
-            await message.reply(
                     f"**Want more details?** View the agent's thread [here]({thread.jump_url})."
-            )
+                )
+            if not tool_success:
+                if not undo_failures:
+                    await message.reply(
+                        f"**Task failure! ** ❌\n{"Here is an explanation of why your request failed:\n\n" + final_response if final_response else 'All steps did NOT complete successfully.'}\n"
+                        f"Note that we also undid any altered state.\n\n"
+                        f"**Want more details?** View the agent's thread [here]({thread.jump_url})."
+                    )
+                else:
+                     await message.reply(
+                        f"**Task failure! ** ❌\n{"Here is an explanation of why your request failed:\n\n" + final_response if final_response else 'All steps did NOT complete successfully.'}\n"
+                        f"Note that we also undid as much altered state as possible, but at least one error occurred in the process.\n\n"
+                        f"**Want more details?** View the agent's thread [here]({thread.jump_url})."
+                    )
+      
+            if tool_sucess:
+              if len(final_response) > 1900:
+                  for j in range(0, len(final_response), 1900):
+                      if j == 0:
+                          await message.reply(
+                              f"**Task completed!** 🎉\n\n{final_response[j : j + 1900] if final_response[j : j + 1900] else '✅ All steps completed successfully.'}\n\n"
+                          )
+                      else:
+                          await message.reply(
+                              f"{final_response[j : j + 1900] if final_response[j : j + 1900] else '✅ All steps completed successfully.'}\n\n"
+                          )
+              else:
+                  await message.reply(
+                      f"**Task completed!** 🎉\n\n{final_response if final_response else '✅ All steps completed successfully.'}\n\n"
+                  )
+              
+             if not tool_success:
+                  if len(final_response) > 1900:
+                    for j in range(0, len(final_response), 1900):
+                        if j == 0:
+                            await message.reply(
+                                f"**Task failure! ** ❌\n{"Here is an explanation of why your request failed:\n\n" + final_response[j : j + 1900] if final_response[j : j + 1900] else 'All steps did NOT complete successfully.'}\n"
+                            )
+                        else:
+                            await message.reply(
+                                f"{final_response[j : j + 1900] if final_response[j : j + 1900] else 'All steps did NOT complete successfully.'}\n\n"
+                            )
+                     await message.reply(
+                         f"**Want more details?** View the agent's thread [here]({thread.jump_url})."
+                     )
+                  else:
+                       await message.reply(
+                           f"**Task failure! ** ❌\n{"Here is an explanation of why your request failed:\n\n" + final_response if final_response else 'All steps did NOT complete successfully.'}\n"
+                       )
+                  if not undo_failures:
+                      await message.reply(
+                          f"Note that we also undid any altered state.\n\n"
+                          f"**Want more details?** View the agent's thread [here]({thread.jump_url})."
+                      )
+                  else:
+                     await message.reply(
+                        f"Note that we also undid as much altered state as possible, but at least one error occurred in the process.\n\n"
+                        f"**Want more details?** View the agent's thread [here]({thread.jump_url})."
+                    )
 
         except Exception as e:
             await message.reply(
