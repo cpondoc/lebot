@@ -27,18 +27,30 @@ We also have some examples of what the bot is capable of doing below.
 
 <details>
   <summary>Basic Questions about Instance</summary>
+  <h3 align="center">
+    <img src="https://i.ibb.co/XfMDB1Y7/basic-questions.png" />
+  </h3>
 </details>
 
 <details>
   <summary>Setting up GitHub Repositories</summary>
+  <h3 align="center">
+    <img src="https://i.ibb.co/7NJCtSc3/github.png" />
+  </h3>
 </details>
 
 <details>
   <summary>Error Handling</summary>
+  <h3 align="center">
+    <img src="https://i.ibb.co/nNzWVg0F/error-handling.png" />
+  </h3>
 </details>
 
 <details>
   <summary>Long Horizon Planning</summary>
+  <h3 align="center">
+    <img src="https://i.ibb.co/j9f5Vh0k/long-horizon-planning.png" />
+  </h3>
 </details>
 
 ## Set-Up
