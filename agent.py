@@ -376,8 +376,17 @@ class AWSAgent:
                     tool, message.content, current_user_state[0]
                 )
 
-                if len(tool_response) > 1500:
-                    tool_response = tool_response[:1500] + "..."
+                # Show plan messages, give agent a bit of time
+                if len(tool_response) > 1900:
+                    for j in range(0, len(tool_response), 1900):
+                        if j == 0:
+                            await thread.send(f"**✅ Step {i+1}**:\n{tool_response[j : j + 1900]}")
+                        else:
+                            await thread.send(f"{tool_response[j : j + 1900]}")
+                else:
+                    await thread.send(f"**✅ Step {i+1}**:\n{tool_response}")
+                step_memory += f"**✅ Step {i+1}**:\n{tool_response}"
+
                 step_summaries.append(tool_string)
                 step_summaries.append(tool_response)
 
@@ -436,8 +445,7 @@ class AWSAgent:
             final_response = await self.summarize_actions(
                 message.content, step_summaries, tool_success
             )
-            if len(final_response) > 1500:
-                final_response = final_response[:1500] + "..."
+            
             if tool_success:
                 await message.reply(
                     f"**Task completed!** 🎉\n\n{final_response if final_response else '✅ All steps completed successfully.'}\n\n"
@@ -453,6 +461,51 @@ class AWSAgent:
                 else:
                      await message.reply(
                         f"**Task failure! ** ❌\n{"Here is an explanation of why your request failed:\n\n" + final_response if final_response else 'All steps did NOT complete successfully.'}\n"
+                        f"Note that we also undid as much altered state as possible, but at least one error occurred in the process.\n\n"
+                        f"**Want more details?** View the agent's thread [here]({thread.jump_url})."
+                    )
+      
+            if tool_sucess:
+              if len(final_response) > 1900:
+                  for j in range(0, len(final_response), 1900):
+                      if j == 0:
+                          await message.reply(
+                              f"**Task completed!** 🎉\n\n{final_response[j : j + 1900] if final_response[j : j + 1900] else '✅ All steps completed successfully.'}\n\n"
+                          )
+                      else:
+                          await message.reply(
+                              f"{final_response[j : j + 1900] if final_response[j : j + 1900] else '✅ All steps completed successfully.'}\n\n"
+                          )
+              else:
+                  await message.reply(
+                      f"**Task completed!** 🎉\n\n{final_response if final_response else '✅ All steps completed successfully.'}\n\n"
+                  )
+              
+             if not tool_success:
+                  if len(final_response) > 1900:
+                    for j in range(0, len(final_response), 1900):
+                        if j == 0:
+                            await message.reply(
+                                f"**Task failure! ** ❌\n{"Here is an explanation of why your request failed:\n\n" + final_response[j : j + 1900] if final_response[j : j + 1900] else 'All steps did NOT complete successfully.'}\n"
+                            )
+                        else:
+                            await message.reply(
+                                f"{final_response[j : j + 1900] if final_response[j : j + 1900] else 'All steps did NOT complete successfully.'}\n\n"
+                            )
+                     await message.reply(
+                         f"**Want more details?** View the agent's thread [here]({thread.jump_url})."
+                     )
+                  else:
+                       await message.reply(
+                           f"**Task failure! ** ❌\n{"Here is an explanation of why your request failed:\n\n" + final_response if final_response else 'All steps did NOT complete successfully.'}\n"
+                       )
+                  if not undo_failures:
+                      await message.reply(
+                          f"Note that we also undid any altered state.\n\n"
+                          f"**Want more details?** View the agent's thread [here]({thread.jump_url})."
+                      )
+                  else:
+                     await message.reply(
                         f"Note that we also undid as much altered state as possible, but at least one error occurred in the process.\n\n"
                         f"**Want more details?** View the agent's thread [here]({thread.jump_url})."
                     )
