@@ -419,7 +419,7 @@ class AWSAgent:
                     if not undo_failures:
                         await thread.send(f"**🔄🎉** All altered state has been undone to the best of our ability!")
                     else:
-                        await thread.send(f"**🔄🎉** We undid as much altered state as possible with our best efforts, but there were some errors identified!")
+                        await thread.send(f"**🔄🎉** We undid as much altered state as possible with our best efforts, but at least one error was identified!")
                     break
                 
                 if len(tool_response) > 1900:
