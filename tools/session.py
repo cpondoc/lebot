@@ -243,6 +243,7 @@ class PersistentSSMSession:
 
     def _execute_normal_command(self, command):
         """Execute a regular shell command inside the conda environment"""
+
         # Build environment variable string
         env_vars = " ".join([f"{k}='{v}'" for k, v in self.environment_vars.items()])
         env_prefix = f"{env_vars} " if env_vars else ""
@@ -271,10 +272,11 @@ class PersistentSSMSession:
             )
             
             self.command_history.append(command)
-            # ALSO ADAPT OTHER AREAS
-            if output["Status"] == "Failed":
-                return output["StandardErrorContent"]
-            return output["StandardOutputContent"]
+
+            if len(output["StandardOutputContent"]) != 0:
+                return output["StandardOutputContent"]
+            return output["StandardErrorContent"]
+            
         except Exception as e:
             return f"Error executing command: {e}"
 
