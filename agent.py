@@ -412,9 +412,10 @@ class AWSAgent:
                             undo_tool, message.content, current_user_state[0]
                         )
                         if not undo_tool_success:
-                            await thread.send(f"**🔄❌ Reversing Step {j+1} Failed**:\n We're sorry, but reversing this command failed, and altered state may still persist from this step!")
+                            await thread.send(f"**🔄❌ Reversing Step {j+1} Failed**:\nWe're sorry, but reversing this command failed, and altered state may still persist from this step!")
                             undo_failures = True
-                        await thread.send(f"**🔄✅ Reversing Step {j+1} **:\n{undo_tool_response}")
+                        else:
+                            await thread.send(f"**🔄✅ Reversing Step {j+1} **:\n{undo_tool_response}")
                     if not undo_failures:
                         await thread.send(f"**🔄🎉** All altered state has been undone to the best of our ability!")
                     else:
