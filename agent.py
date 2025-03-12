@@ -376,20 +376,6 @@ class AWSAgent:
                     tool, message.content, current_user_state[0]
                 )
 
-                # Show plan messages, give agent a bit of time
-                if len(tool_response) > 1900:
-                    for j in range(0, len(tool_response), 1900):
-                        if j == 0:
-                            await thread.send(f"**✅ Step {i+1}**:\n{tool_response[j : j + 1900]}")
-                        else:
-                            await thread.send(f"{tool_response[j : j + 1900]}")
-                else:
-                    await thread.send(f"**✅ Step {i+1}**:\n{tool_response}")
-                step_memory += f"**✅ Step {i+1}**:\n{tool_response}"
-
-                step_summaries.append(tool_string)
-                step_summaries.append(tool_response)
-
                 if not tool_success:
                     await thread.send(f"**Step❌ {i+1}**:\n{tool_response}")
                     step_memory += f"**❌ Step {i+1}**:\n{tool_response}\n"
@@ -434,9 +420,18 @@ class AWSAgent:
                     else:
                         await thread.send(f"**🔄🎉** We undid as much altered state as possible with our best efforts, but there were some errors identified!")
                     break
-
-                await thread.send(f"**✅ Step {i+1}**:\n{tool_response}")
+                
+                if len(tool_response) > 1900:
+                    for j in range(0, len(tool_response), 1900):
+                        if j == 0:
+                            await thread.send(f"**✅ Step {i+1}**:\n{tool_response[j : j + 1900]}")
+                        else:
+                            await thread.send(f"{tool_response[j : j + 1900]}")
+                else:
+                    await thread.send(f"**✅ Step {i+1}**:\n{tool_response}")
                 step_memory += f"**✅ Step {i+1}**:\n{tool_response}"
+                step_summaries.append(tool_string)
+                step_summaries.append(tool_response)
                 await asyncio.sleep(2)
 
             self.user_state_dict[message.author][1].append(step_memory)
