@@ -481,7 +481,7 @@ class AWSAgent:
                     )
                 if not undo_failures:
                     await message.reply(
-                        f"Note that we also undid any altered state.\n\n"
+                        f"Note that we also undid any altered state to the best of our ability.\n\n"
                         f"**Want more details?** View the agent's thread [here]({thread.jump_url})."
                     )
                 else:
