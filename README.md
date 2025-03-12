@@ -23,33 +23,33 @@ To get started, simply navigate to our [channel](https://discord.com/channels/13
 
 ## Examples
 
-We also have some examples of what the bot is capable of doing below.
+We also have some examples of what the bot is capable of doing below. Click on each image to get a link to the example in our server.
 
 <details>
   <summary>Basic Questions about Instance</summary>
   <h3 align="center">
-    <img src="https://i.ibb.co/XfMDB1Y7/basic-questions.png" />
+    <a href="https://discord.com/channels/1326353542037901352/1343030976791580672/1349271641330290781"><img src="https://i.ibb.co/XfMDB1Y7/basic-questions.png" /></a>
   </h3>
 </details>
 
 <details>
   <summary>Setting up GitHub Repositories</summary>
   <h3 align="center">
-    <img src="https://i.ibb.co/7NJCtSc3/github.png" />
+    <a href="https://discord.com/channels/1326353542037901352/1343030976791580672/1349248576785612810"><img src="https://i.ibb.co/7NJCtSc3/github.png" /></a>
   </h3>
 </details>
 
 <details>
   <summary>Error Handling</summary>
   <h3 align="center">
-    <img src="https://i.ibb.co/nNzWVg0F/error-handling.png" />
+    <a href="https://discord.com/channels/1326353542037901352/1343030976791580672/1349483233267417099"><img src="https://i.ibb.co/nNzWVg0F/error-handling.png" /></a>
   </h3>
 </details>
 
 <details>
   <summary>Long Horizon Planning</summary>
   <h3 align="center">
-    <img src="https://i.ibb.co/j9f5Vh0k/long-horizon-planning.png" />
+    <a href="https://discord.com/channels/1326353542037901352/1343030976791580672/1349486965740933140"><img src="https://i.ibb.co/j9f5Vh0k/long-horizon-planning.png" /></a>
   </h3>
 </details>
 
