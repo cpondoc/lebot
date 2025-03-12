@@ -447,20 +447,23 @@ class AWSAgent:
             )
       
             if tool_success:
-              if len(final_response) > 1900:
-                  for j in range(0, len(final_response), 1900):
-                      if j == 0:
-                          await message.reply(
-                              f"**Task completed!** 🎉\n\n{final_response[j : j + 1900] if final_response[j : j + 1900] else '✅ All steps completed successfully.'}\n\n"
-                          )
-                      else:
-                          await message.reply(
-                              f"{final_response[j : j + 1900] if final_response[j : j + 1900] else '✅ All steps completed successfully.'}\n\n"
-                          )
-              else:
-                  await message.reply(
-                      f"**Task completed!** 🎉\n\n{final_response if final_response else '✅ All steps completed successfully.'}\n\n"
-                  )
+                if len(final_response) > 1900:
+                    for j in range(0, len(final_response), 1900):
+                        if j == 0:
+                            await message.reply(
+                                f"**Task completed!** 🎉\n\n{final_response[j : j + 1900] if final_response[j : j + 1900] else '✅ All steps completed successfully.'}\n\n"
+                            )
+                        else:
+                            await message.reply(
+                                f"{final_response[j : j + 1900] if final_response[j : j + 1900] else '✅ All steps completed successfully.'}\n\n"
+                        )
+                else:
+                    await message.reply(
+                        f"**Task completed!** 🎉\n\n{final_response if final_response else '✅ All steps completed successfully.'}\n\n"
+                    )
+                await message.reply(
+                        f"**Want more details?** View the agent's thread [here]({thread.jump_url})."
+                    )
               
             if not tool_success:
                 if len(final_response) > 1900:
