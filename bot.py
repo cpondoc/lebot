@@ -73,7 +73,7 @@ async def about_command(ctx):
     team_mentions = ", ".join(f"<@{user_id}>" for user_id in team_ids)
     help_text = (
         "**Introducing LeBot!**\n"
-        "LeBot helps you manage and use your cloud infrastructure using only natural language!"
+        "LeBot helps you manage and use your cloud infrastructure using only natural language! "
         "Ask questions about your instance, create folders and files, and even clone and run GitHub repos!\n\n"
         "To get started, simply ask the bot a question or to do a task, and LeBot will take care of it for you.\n\n"
         "**Example Questions:**\n"
