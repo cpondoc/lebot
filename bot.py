@@ -85,6 +85,7 @@ async def about_command(ctx):
         "**Available Commands:**\n"
         "`!about` - Displays this help message.\n"
         "`!examples` - Gives example repositories to play around with. LeBot may not work with repos that are not listed.\n"
+        "`!runbook` - Gives best practice tips on how to use LeBot\n"
         "`!lebron` - LeBron.\n\n"
         "**Project Info**\n"
         "- [LeBot Code](https://github.com/cpondoc/lebot)\n"
