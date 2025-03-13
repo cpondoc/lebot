@@ -19,6 +19,7 @@ To get started, simply navigate to our [channel](https://discord.com/channels/13
 |------------|-------------|
 | `!about`   | Displays this help message. |
 | `!examples` | Gives example repositories to play around with. LeBot may not work with repos that are not listed. |
+| `!runbook`  | Gives best practice tips on how to use LeBot. |
 | `!lebron`  | LeBron. |
 
 ## Examples
