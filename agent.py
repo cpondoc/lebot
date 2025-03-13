@@ -491,7 +491,16 @@ class AWSAgent:
                     )
 
         except Exception as e:
-            await message.reply(
-                f"**Error occurred ❌**: An error occurred while processing your request. Please try again!"
-            )
+            print(str(e))
+            if "Requests rate limit exceeded" in str(e):
+                await message.reply(
+                    ('**Rate limiting error occurred ❌**:\n A rate limiting error occurred for the Mistral API while processing your request.'
+                    ' Please **only send one request at a time, and wait for your request to finish**! Your request is finished when you see a message beginning with'
+                    'either "Task completed! 🎉" or "Task failure! ❌" in the main LeBot channel. If you are sending'
+                    ' requests at the same time as others, be mindful that this rate limiting error may also occur then!')
+                )
+            else:
+                await message.reply(
+                    f"**Error occurred ❌**: An error occurred while processing your request. Please try again!"
+                )
             logger.error(f"Error in run function: {e}")
