@@ -85,6 +85,7 @@ async def about_command(ctx):
         "**Available Commands:**\n"
         "`!about` - Displays this help message.\n"
         "`!examples` - Gives example repositories to play around with. LeBot may not work with repos that are not listed.\n"
+        "`!runbook` - Gives best practice tips on how to use LeBot\n"
         "`!lebron` - LeBron.\n\n"
         "**Project Info**\n"
         "- [LeBot Code](https://github.com/cpondoc/lebot)\n"
@@ -104,6 +105,27 @@ async def examples_command(ctx):
         "- [LeBron Quote Generator (Python)] https://github.com/natalieg1/lebron-quote-generator\n"
     )
     await ctx.send(examples_text)
+
+
+# This command is a command for best practice tips
+@bot.command(name="runbook", help="Gives best practice tips on how to use LeBot!")
+async def about_command(ctx):
+    help_text = (
+        "**Quick tips for using LeBot:**\n"
+        "- Do not bombard LeBot with requests. Doing so will likely result in rate limiting errors from the Mistral API."
+        ' Wait for your current command to finish, signaled by a message beginning with either "Task completed! 🎉" or "Task failure! ❌" in the main LeBot channel,'
+        " before sending another request.\n"
+        "- LeBot is meant to handle interacting with the cloud instance with Terminal commands like:\n"
+        '   - Making files: Please make the file example_file.txt\n'
+        '   - Adding text to files: Add the text "Hello World" to example_file.txt\n'
+        '   - Creating directories: Please create the directory example_directory\n'
+        '   - Asking about the current directory: What directory am I in right now?\n'
+        'and so forth. LeBot can also set up simple Github repositories (these repositories can be seen by running the !examples command):\n'
+        '   - Clone, set up, and run this repository: https://github.com/natalieg1/lebron-quote-generator\n'
+        'LeBot is not meant to handle requests about altering or giving administrative information about the cloud instance itself.\n'
+        '- You can also see examples of using LeBot in the examples section of the README: https://github.com/cpondoc/lebot'
+    )
+    await ctx.send(help_text)
 
 
 # LeBron.
